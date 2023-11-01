@@ -2,6 +2,7 @@
 
 
 # update system
+sudo pacman-mirrors --country Australia
 sudo pacman -Syu --noconfirm --quiet
 
 
