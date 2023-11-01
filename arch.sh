@@ -32,4 +32,4 @@ chsh -s /usr/bin/zsh
 
 
 # copy files from home/
-cp -r home/.* ~/
+cp -r ./home ~/ -T
