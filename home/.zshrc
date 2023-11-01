@@ -105,3 +105,13 @@ function preexec() {
 function precmd() {
   echo "\n"
 }
+
+
+#------------------------------
+# Load profile if missing anything
+#------------------------------
+# if accept shortcut from autosuggest not binded
+output=$(bindkey)
+if ! echo "$output" | grep -q "autosuggest-accept"; then
+    source ~/.zshrc
+fi
