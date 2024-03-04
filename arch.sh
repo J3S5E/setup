@@ -14,8 +14,6 @@ sudo pacman ttf-hack-nerd --noconfirm --quiet
 sudo pacman -S neofetch --noconfirm --quiet
 
 
-# install neovim
-sudo pacman -S neovim --noconfirm --quiet
 # install nvim dependencies
 sudo pacman -S nodejs npm ripgrep zip unzip --noconfirm --quiet
 
@@ -34,3 +32,6 @@ chsh -s /usr/bin/zsh
 
 # copy files from home/
 cp -r ./home ~/ -T
+
+# download kicksart.nvim
+git clone https://github.com/nvim-lua/kickstart.nvim.git "${XDG_CONFIG_HOME:-$HOME/.config}"/nvim
