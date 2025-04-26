@@ -1,0 +1,14 @@
+os:
+  editCommand: 'nvim'
+  editCommandTemplate: '{{editor}} "{{filename}}"'
+gui:
+  nerdFontsVersion: "3"
+  customIcons:
+    gitStatus:
+      "deleted": ' '
+      "renamed": '󰁕 '
+      "modified": '󰓎 '
+      "ignored": ' '
+      "added": ' '
+      "untracked": ' '
+      "conflict": ' '
