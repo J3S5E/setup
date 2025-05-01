@@ -399,6 +399,36 @@ config.keys = {
 		action = act.ActivateTabRelative(-1),
 	},
 	{
+		key = "f",
+		mods = "ALT",
+		action = act.Search({ CaseInSensitiveString = "" }),
+	},
+	{
+		key = "f",
+		mods = "ALT|SHIFT",
+		action = act.Search({ CaseSensitiveString = "" }),
+	},
+	{
+		key = "]",
+		mods = "ALT",
+		action = act.ActivateTabRelative(1),
+	},
+	{
+		key = "[",
+		mods = "ALT",
+		action = act.ActivateTabRelative(-1),
+	},
+	{
+		key = "=",
+		mods = "ALT",
+		action = act.IncreaseFontSize,
+	},
+	{
+		key = "-",
+		mods = "ALT",
+		action = act.DecreaseFontSize,
+	},
+	{
 		key = "t",
 		mods = "CTRL|SHIFT",
 		action = act.SpawnTab("CurrentPaneDomain"),
