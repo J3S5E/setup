@@ -3,6 +3,9 @@ os:
   editCommandTemplate: '{{editor}} "{{filename}}"'
 gui:
   nerdFontsVersion: "3"
+  theme:
+    selectedLineBgColor:
+      - '#004469'
   customIcons:
     gitStatus:
       "deleted": ''

@@ -50,6 +50,16 @@ config.window_close_confirmation = "NeverPrompt"
 config.colors = {
 	compose_cursor = "magenta",
 }
+config.color_scheme = "tokyonight"
+
+config.background = {
+	{
+		source = {
+			File = "https://wallpapers.com/images/hd/black-space-te0qf47nq9l959es.jpg",
+		},
+		hsb = { brightness = 0.1 },
+	},
+}
 
 -- Default program
 config.default_prog = { "cmd" }
