@@ -419,6 +419,11 @@ config.keys = {
 		action = act.Search({ CaseSensitiveString = "" }),
 	},
 	{
+		key = "v",
+		mods = "ALT",
+		action = act.ActivateCopyMode,
+	},
+	{
 		key = "]",
 		mods = "ALT",
 		action = act.ActivateTabRelative(1),
