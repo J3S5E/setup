@@ -82,6 +82,15 @@ config.unix_domains = {
 
 config.prefer_to_spawn_tabs = true
 
+for _, gpu in ipairs(wezterm.gui.enumerate_gpus()) do
+	if string.find(gpu.backend, "Direct%.") and gpu.device_type == "IntegratedGpu" then
+		config.webgpu_preferred_adapter = gpu
+		config.front_end = "WebGpu"
+		config.webgpu_power_preference = "HighPerformance"
+		break
+	end
+end
+
 ---------
 ---
 --- FUNCTIONS
@@ -396,6 +405,11 @@ config.keys = {
 		key = "j",
 		mods = "LEADER",
 		action = act.ActivatePaneDirection("Down"),
+	},
+	{
+		key = "F11",
+		mods = "ALT",
+		action = act.ToggleFullScreen,
 	},
 	{
 		key = "Tab",
