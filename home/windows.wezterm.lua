@@ -13,12 +13,12 @@ local default_programs = {
 		{
 			split = "v",
 			app = { "C:\\Program Files\\Git\\bin\\bash.exe" },
-			percent = 10,
+			percent = 30,
 		},
 		{
 			split = "h",
 			app = { "cmd" },
-			percent = 10,
+			percent = 30,
 		},
 	},
 }
@@ -61,7 +61,6 @@ config.background = {
 	},
 }
 
--- Default program
 config.default_prog = { "cmd" }
 
 config.inactive_pane_hsb = {
@@ -158,7 +157,7 @@ local function is_git_dir(dir)
 end
 
 local function update_recent(item, list)
-	local recents_file = Home .. "\\_" .. list .. "wezterm.recent"
+	local recents_file = Home .. "\\_" .. list .. "_wezterm.recent"
 	debug("updating recent")
 	local recents = {}
 	-- get existing recent files (besides current)
