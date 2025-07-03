@@ -341,6 +341,34 @@ local function goto_config(win, pane)
 	end
 end
 
+local function switch_agent_workspace(win, pane)
+	local agent_session_suffix = "__agent"
+	local cwd = get_cwd_string(pane)
+	local workspace = win:active_workspace()
+	local agent_workspace = workspace .. agent_session_suffix
+	if workspace:sub(-#agent_session_suffix) == agent_session_suffix then
+		local other_workspace = workspace:sub(1, -(#agent_session_suffix + 1))
+		if does_session_exist(other_workspace) then
+			goto_session(win, pane, other_workspace)
+		end
+		return
+	end
+	if does_session_exist(agent_workspace) then
+		goto_session(win, pane, agent_workspace)
+	else
+		win:perform_action(
+			act.SwitchToWorkspace({
+				name = agent_workspace,
+				spawn = {
+					cwd = cwd,
+					args = { "C:\\Program Files\\Git\\bin\\bash.exe", "-c", "opencode", "&&", "exit" },
+				},
+			}),
+			pane
+		)
+	end
+end
+
 ---------
 ---
 --- BINDINGS
@@ -470,6 +498,11 @@ config.keys = {
 		key = "g",
 		mods = "ALT",
 		action = wezterm.action_callback(goto_repo),
+	},
+	{
+		key = "a",
+		mods = "ALT",
+		action = wezterm.action_callback(switch_agent_workspace),
 	},
 	{
 		key = "c",
