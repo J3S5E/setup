@@ -1,6 +1,20 @@
 local debug_mode = true
 local recent_list_length = 30
-local default_programs = {
+
+-- Pull in the wezterm API
+local wezterm = require("wezterm")
+local act = wezterm.action
+local io = require("io")
+local os = require("os")
+
+local is_windows = wezterm.target_triple:find("windows") ~= nil
+local is_mac = wezterm.target_triple:find("darwin") ~= nil
+
+local Home = is_windows and os.getenv("USERPROFILE") or os.getenv("HOME")
+
+local fss = is_windows and "\\" or "/"
+
+local default_programs_windows = {
 	{
 		{
 			app = { "nvim", "." },
@@ -23,12 +37,30 @@ local default_programs = {
 	},
 }
 
--- Pull in the wezterm API
-local wezterm = require("wezterm")
-local act = wezterm.action
-local io = require("io")
-local os = require("os")
-local Home = os.getenv("userprofile")
+local default_programs_unix = {
+	{
+		{
+			app = { "/bin/zsh", "-i", "-c", "nvim ." },
+		},
+	},
+	{
+		{
+			app = { "/bin/zsh", "-i", "-c", "lazygit" },
+		},
+		{
+			split = "v",
+			percent = 30,
+		},
+	},
+}
+
+local function get_default_programs()
+	if is_windows then
+		return default_programs_windows
+	else
+		return default_programs_unix
+	end
+end
 
 -- This will hold the configuration.
 local config = wezterm.config_builder()
@@ -52,16 +84,43 @@ config.colors = {
 }
 config.color_scheme = "tokyonight"
 
+local function set_env_path(config)
+	if is_mac then
+		config.set_environment_variables = {
+			PATH = os.getenv("PATH") .. ":/opt/homebrew/bin:/opt/homebrew/sbin",
+		}
+	end
+end
+
+set_env_path(config)
+
+local function get_background_file()
+	local picures = Home .. fss .. "Pictures" .. fss .. "terminal_background.png"
+	if io.open(picures, "r") then
+		return picures
+	else
+		return Home .. fss .. "terminal_background.png"
+	end
+end
+
 config.background = {
 	{
 		source = {
-			File = "https://wallpapers.com/images/hd/black-space-te0qf47nq9l959es.jpg",
+			File = get_background_file(),
 		},
 		hsb = { brightness = 0.1 },
 	},
 }
 
-config.default_prog = { "cmd" }
+local function get_default_prog()
+	if is_windows then
+		return { "cmd" }
+	else
+		return { "bash" }
+	end
+end
+
+config.default_prog = get_default_prog()
 
 config.inactive_pane_hsb = {
 	saturation = 0.3,
@@ -98,7 +157,7 @@ end
 ---------
 
 local function debug(message)
-	local log_file = Home .. "\\_wezterm.log"
+	local log_file = Home .. fss .. "_wezterm.log"
 	if debug_mode then
 		local f = io.open(log_file, "a")
 		if f then
@@ -137,10 +196,10 @@ local function change_window_title(tab, pane, tabs)
 	local workspace = wezterm.mux.get_active_workspace()
 	if workspace ~= "default" then
 		local result = {}
-		for match in (workspace):gmatch("(.-)\\") do
+		for match in (workspace):gmatch("(.-)" .. fss) do
 			table.insert(result, match)
 		end
-		if not string.find(workspace, "\\") then
+		if not string.find(workspace, fss) then
 			result = { workspace }
 		end
 		return zoomed .. index .. pane.title .. "   -   " .. result[#result]
@@ -151,22 +210,26 @@ end
 
 local function get_cwd_string(pane)
 	local cwd = tostring(pane:get_current_working_dir())
-	return cwd:gsub("file:///", ""):gsub("/", "\\")
+	if is_windows then
+		return cwd:gsub("file:///", ""):gsub("/", "\\")
+	else
+		return cwd:gsub("file://", "") .. fss
+	end
 end
 
 local function is_git_dir(dir)
-	local head = dir .. ".git\\HEAD"
+	local head = dir .. ".git" .. fss .. "HEAD"
 	local f = io.open(head, "a")
 	if f then
 		f:close()
 		return true
 	else
-		return false
+		return dir:find(".worktree") ~= nil
 	end
 end
 
 local function update_recent(item, list)
-	local recents_file = Home .. "\\_" .. list .. "_wezterm.recent"
+	local recents_file = Home .. fss .. "_" .. list .. "_wezterm.recent"
 	debug("updating recent")
 	local recents = {}
 	-- get existing recent files (besides current)
@@ -193,7 +256,7 @@ local function update_recent(item, list)
 end
 
 local function get_recent(list)
-	local recents_file = Home .. "\\_" .. list .. "_wezterm.recent"
+	local recents_file = Home .. fss .. "_" .. list .. "_wezterm.recent"
 	local dirs = {}
 	-- get existing recent files (besides current)
 	local f = io.open(recents_file, "r")
@@ -257,8 +320,8 @@ end
 
 local function start_session(win, pane, cwd)
 	debug("Starting session - " .. cwd)
-	local programs = default_programs
-	local wezrc = cwd .. "\\.wezrc"
+	local programs = get_default_programs()
+	local wezrc = cwd .. fss .. ".wezrc"
 	local f = io.open(wezrc, "r")
 	if f then
 		local line = f:read("*l")
@@ -327,6 +390,14 @@ local function goto_repo(win, pane)
 	prompt_then_change(win, pane, recents, "repos")
 end
 
+local function get_wez_nvim_args()
+	if is_windows then
+		return { "nvim", ".wezterm.lua" }
+	else
+		return { "/bin/zsh", "-i", "-c", "nvim .wezterm.lua" }
+	end
+end
+
 local function goto_config(win, pane)
 	if does_session_exist("wezterm_config") then
 		goto_session(win, pane, "wezterm_config")
@@ -334,17 +405,37 @@ local function goto_config(win, pane)
 		win:perform_action(
 			act.SwitchToWorkspace({
 				name = "wezterm_config",
-				spawn = { cwd = Home, args = { "nvim", ".wezterm.lua" } },
+				spawn = { cwd = Home, args = get_wez_nvim_args() },
 			}),
 			pane
 		)
 	end
 end
 
-local function switch_agent_workspace(win, pane)
-	local agent_session_suffix = "__agent"
-	local cwd = get_cwd_string(pane)
+local function opencode_args()
+	if is_windows then
+		return { "C:\\Program Files\\Git\\bin\\bash.exe", "-c", "opencode-cli", "&&", "exit" }
+	else
+		return { "/bin/zsh", "-i", "-c", "opencode" }
+	end
+end
+
+local function open_opencode(win, pane, cwd, agent_workspace)
+	win:perform_action(
+		act.SwitchToWorkspace({
+			name = agent_workspace,
+			spawn = {
+				cwd = cwd,
+				args = opencode_args(),
+			},
+		}),
+		pane
+	)
+end
+
+local function switch_agent_workspace_not_git(win, pane, cwd)
 	local workspace = win:active_workspace()
+	local agent_session_suffix = "__agent"
 	local agent_workspace = workspace .. agent_session_suffix
 	if workspace:sub(-#agent_session_suffix) == agent_session_suffix then
 		local other_workspace = workspace:sub(1, -(#agent_session_suffix + 1))
@@ -356,16 +447,112 @@ local function switch_agent_workspace(win, pane)
 	if does_session_exist(agent_workspace) then
 		goto_session(win, pane, agent_workspace)
 	else
-		win:perform_action(
-			act.SwitchToWorkspace({
-				name = agent_workspace,
-				spawn = {
-					cwd = cwd,
-					args = { "C:\\Program Files\\Git\\bin\\bash.exe", "-c", "opencode", "&&", "exit" },
-				},
-			}),
-			pane
-		)
+		open_opencode(win, pane, cwd, agent_workspace)
+	end
+end
+
+-- TODO: prompts user for new worktree name and source branch, creates worktree, and returns new worktree path - ${cwd}\.worktrees\{name}
+local function make_new_worktree(cwd) end
+
+--TODO: prompts user to choose a worktree to remove, then removes it
+local function ask_clear_worktrees(cwd, worktrees) end
+
+local function switch_agent_workspace_git(win, pane, cwd)
+	local workspace = win:active_workspace()
+	local agent_session_suffix = "__agent"
+	local is_agent_workspace = workspace:find(agent_session_suffix) ~= nil
+	if is_agent_workspace then
+		local other_workspace = workspace:sub(1, win:active_workspace():find(agent_session_suffix) - 1)
+		if does_session_exist(other_workspace) then
+			debug("switching to other workspace: " .. other_workspace)
+			goto_session(win, pane, other_workspace)
+		end
+		return
+	end
+	local is_worktree_dir = cwd:find(".worktree") ~= nil
+	if is_worktree_dir then
+		local agent_workspace = cwd .. agent_session_suffix
+		if does_session_exist(agent_workspace) then
+			goto_session(win, pane, agent_workspace)
+		else
+			open_opencode(win, pane, cwd, agent_workspace)
+		end
+		return
+	end
+	local output = io.popen("git -C " .. cwd .. " worktree list --porcelain"):read("*a")
+	local worktrees = {}
+	for path in output:gmatch("worktree (.-)\n") do
+		table.insert(worktrees, path)
+	end
+	local options = {
+		{
+			label = "NO WORKTREE",
+			id = "no_worktree",
+		},
+	}
+	for _, worktree in ipairs(worktrees) do
+		if worktree:find(".worktree") ~= nil then
+			table.insert(options, {
+				label = is_windows and worktree:match("([^\\]+)$") or worktree:match("([^/]+)$"),
+				id = worktree,
+			})
+		end
+	end
+	table.insert(options, {
+		label = "NEW WORKTREE",
+		id = "new_worktree",
+	})
+	table.insert(options, {
+		label = "CLEAR WORKTREE",
+		id = "clear_worktree",
+	})
+	win:perform_action(
+		act.InputSelector({
+			title = "Choose a worktree",
+			choices = options,
+			action = wezterm.action_callback(function(window, pane2, id, label)
+				if id then
+					debug("chosen: " .. id)
+					if id == "no_worktree" then
+						label = ""
+						id = cwd
+					elseif id == "new_worktree" then
+						local new_cwd = make_new_worktree(cwd)
+						if not new_cwd then
+							return
+						end
+						local new_label = is_windows and new_cwd:match("([^\\]+)$") or new_cwd:match("([^/]+)$")
+						local new_workspace = cwd .. agent_session_suffix .. new_label
+						open_opencode(window, pane2, new_cwd, new_workspace)
+						return
+					elseif id == "clear_worktree" then
+						ask_clear_worktrees(cwd, worktrees)
+						switch_agent_workspace_git(window, pane2, cwd)
+						return
+					else
+						label = "__" .. label
+					end
+					local agent_workspace = cwd .. agent_session_suffix .. label
+					if does_session_exist(agent_workspace) then
+						goto_session(window, pane2, agent_workspace)
+					else
+						open_opencode(window, pane2, id, agent_workspace)
+					end
+				end
+				return nil
+			end),
+		}),
+		pane
+	)
+end
+
+local function switch_agent_workspace(win, pane)
+	local cwd = get_cwd_string(pane)
+	local is_git = is_git_dir(cwd)
+	if is_git then
+		switch_agent_workspace_git(win, pane, cwd)
+	else
+		switch_agent_workspace_not_git(win, pane, cwd)
 	end
 end
 
