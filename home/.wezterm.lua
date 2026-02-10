@@ -224,7 +224,7 @@ local function is_git_dir(dir)
 		f:close()
 		return true
 	else
-		return dir:find(".worktree") ~= nil
+		return false
 	end
 end
 
@@ -552,7 +552,8 @@ end
 local function switch_agent_workspace(win, pane)
 	local cwd = get_cwd_string(pane)
 	local is_git = is_git_dir(cwd)
-	if is_git then
+	local is_worktree = cwd:find(".worktree") ~= nil
+	if is_git or is_worktree then
 		switch_agent_workspace_git(win, pane, cwd)
 	else
 		switch_agent_workspace_not_git(win, pane, cwd)
