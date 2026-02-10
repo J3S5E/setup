@@ -49,7 +49,7 @@ local default_programs_unix = {
 		},
 		{
 			split = "v",
-			percent = 30,
+			percent = 40,
 		},
 	},
 }
@@ -116,7 +116,7 @@ local function get_default_prog()
 	if is_windows then
 		return { "cmd" }
 	else
-		return { "bash" }
+		return { "/bin/zsh", "-i" }
 	end
 end
 
@@ -459,6 +459,9 @@ local function ask_clear_worktrees(cwd, worktrees) end
 
 local function switch_agent_workspace_git(win, pane, cwd)
 	local workspace = win:active_workspace()
+	while workspace:sub(-1) == fss do
+		workspace = workspace:sub(1, -2)
+	end
 	local agent_session_suffix = "__agent"
 	local is_agent_workspace = workspace:find(agent_session_suffix) ~= nil
 	if is_agent_workspace then
