@@ -454,9 +454,6 @@ end
 -- TODO: prompts user for new worktree name and source branch, creates worktree, and returns new worktree path - ${cwd}\.worktrees\{name}
 local function make_new_worktree(cwd) end
 
---TODO: prompts user to choose a worktree to remove, then removes it
-local function ask_clear_worktrees(cwd, worktrees) end
-
 local function switch_agent_workspace_git(win, pane, cwd)
 	local workspace = win:active_workspace()
 	while workspace:sub(-1) == fss do
@@ -505,10 +502,51 @@ local function switch_agent_workspace_git(win, pane, cwd)
 		label = "NEW WORKTREE",
 		id = "new_worktree",
 	})
-	table.insert(options, {
-		label = "CLEAR WORKTREE",
-		id = "clear_worktree",
-	})
+	if #worktrees > 1 then
+		table.insert(options, {
+			label = "CLEAR WORKTREE",
+			id = "clear_worktree",
+		})
+	end
+
+	local function ask_clear_worktrees(window, clear_pane)
+		local clear_options = {}
+		for _, worktree in ipairs(worktrees) do
+			if worktree:find(".worktree") ~= nil then
+				table.insert(clear_options, {
+					label = worktree,
+					id = worktree,
+				})
+			end
+		end
+		if #clear_options == 0 then
+			debug("No worktrees to clear")
+			return
+		end
+		table.insert(clear_options, {
+			label = "CANCEL",
+			id = "cancel",
+		})
+		window:perform_action(
+			act.InputSelector({
+				title = "Choose a worktree to remove",
+				choices = clear_options,
+				action = wezterm.action_callback(function(win2, pane2, id)
+					if id and id ~= "cancel" then
+						os.execute("echo n | git -C " .. cwd .. " worktree remove --force " .. id)
+						if is_windows then
+							os.execute('rmdir /S /Q "' .. id .. '"')
+						else
+							os.execute('rm -rf "' .. id .. '"')
+						end
+					end
+					switch_agent_workspace_git(win2, pane2, cwd)
+				end),
+			}),
+			clear_pane
+		)
+	end
+
 	win:perform_action(
 		act.InputSelector({
 			title = "Choose a worktree",
@@ -529,8 +567,7 @@ local function switch_agent_workspace_git(win, pane, cwd)
 						open_opencode(window, pane2, new_cwd, new_workspace)
 						return
 					elseif id == "clear_worktree" then
-						ask_clear_worktrees(cwd, worktrees)
-						switch_agent_workspace_git(window, pane2, cwd)
+						ask_clear_worktrees(window, pane2)
 						return
 					else
 						label = "__" .. label
