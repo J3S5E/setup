@@ -76,7 +76,6 @@ config.window_padding = {
 	bottom = 0,
 }
 config.exit_behavior = "Close"
-config.font_size = 10
 config.window_close_confirmation = "NeverPrompt"
 
 config.colors = {
@@ -84,29 +83,21 @@ config.colors = {
 }
 config.color_scheme = "tokyonight"
 
-local function set_env_path(config)
+config.font_size = is_mac and 12 or 10
+
+local function set_env_path()
 	if is_mac then
 		config.set_environment_variables = {
 			PATH = os.getenv("PATH") .. ":/opt/homebrew/bin:/opt/homebrew/sbin",
 		}
 	end
 end
-
-set_env_path(config)
-
-local function get_background_file()
-	local picures = Home .. fss .. "Pictures" .. fss .. "terminal_background.png"
-	if io.open(picures, "r") then
-		return picures
-	else
-		return Home .. fss .. "terminal_background.png"
-	end
-end
+set_env_path()
 
 config.background = {
 	{
 		source = {
-			File = get_background_file(),
+			File = Home .. fss .. "Pictures" .. fss .. "terminal_background.png",
 		},
 		hsb = { brightness = 0.1 },
 	},
@@ -132,12 +123,6 @@ config.font = wezterm.font_with_fallback({
 	"JetBrains Mono",
 	"Symbols",
 })
-
-config.unix_domains = {
-	{
-		name = "unix",
-	},
-}
 
 config.prefer_to_spawn_tabs = true
 
