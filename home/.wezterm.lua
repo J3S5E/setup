@@ -195,14 +195,29 @@ end
 
 local function get_cwd_string(pane)
 	local cwd = tostring(pane:get_current_working_dir())
+	local path
 	if is_windows then
-		return cwd:gsub("file:///", ""):gsub("/", "\\")
+		path = cwd:gsub("file:///", ""):gsub("/", "\\")
 	else
-		return cwd:gsub("file://", "") .. fss
+		path = cwd:gsub("file://", "")
+		if path:sub(1, 2) == "~" then
+			path = Home .. path:sub(2)
+		end
+		if path:sub(1, 1) ~= "/" then
+			path = fss .. path:match("/(.*)")
+		end
+		if path:sub(-1) ~= fss then
+			path = path .. fss
+		end
 	end
+	return path
 end
 
 local function is_git_dir(dir)
+	-- ensure trailing slash is there
+	if dir:sub(-1) ~= fss then
+		dir = dir .. fss
+	end
 	local head = dir .. ".git" .. fss .. "HEAD"
 	local f = io.open(head, "a")
 	if f then
