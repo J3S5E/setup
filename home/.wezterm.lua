@@ -495,11 +495,11 @@ local function make_new_worktree(cwd, window, pane)
 					cwd = ensure_trailing_slash(cwd)
 					local new_worktree_path = cwd .. ".worktrees" .. fss .. name
 					if not branch_exists then
-						-- TODO: fix this as to make new branch from current checked out branch
-						os.execute("git -C " .. cwd .. " -b " .. name .. " --track origin/" .. default_branch)
+						io.popen("git -C " .. cwd .. " checkout -b " .. name)
+						io.popen("git -C " .. cwd .. " checkout " .. checked_out)
 					end
 					if name == checked_out then
-						-- TODO: checkout the default branch before creating worktree to avoid git error about already checked out branch
+						io.popen("git -C " .. cwd .. " checkout " .. default_branch)
 					end
 					os.execute("git -C " .. cwd .. " worktree add " .. new_worktree_path .. " " .. name)
 					debug("New worktree created at: " .. new_worktree_path)
@@ -532,9 +532,19 @@ local function switch_agent_workspace_git(win, pane, cwd)
 	end
 	local is_worktree_dir = cwd:find(".worktree") ~= nil
 	if is_worktree_dir then
-		cwd = cwd:match("(.*).worktrees")
 		cwd = ensure_no_trailing_slash(cwd)
-		local agent_workspace = cwd .. agent_session_suffix
+		debug("current worktree dir: " .. cwd)
+		local worktree_name = cwd:match(".worktrees(.*)")
+		if worktree_name:sub(1, 1) == fss then
+			worktree_name = worktree_name:sub(2)
+		end
+		worktree_name = worktree_name:gsub("\\", "/")
+		debug("worktree name: " .. worktree_name)
+		local base_cwd = cwd:match("(.*).worktrees") or cwd:match("(.*).worktree")
+		base_cwd = ensure_no_trailing_slash(base_cwd)
+		local agent_workspace = base_cwd .. agent_session_suffix .. "__" .. worktree_name
+		debug("agent workspace for worktree: " .. agent_workspace)
+		debug("checking if agent workspace exists: " .. agent_workspace)
 		if does_session_exist(agent_workspace) then
 			goto_session(win, pane, agent_workspace)
 		else
