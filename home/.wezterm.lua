@@ -62,6 +62,20 @@ local function get_default_programs()
 	end
 end
 
+local function ensure_trailing_slash(path)
+	if path:sub(-1) ~= fss then
+		return path .. fss
+	end
+	return path
+end
+
+local function ensure_no_trailing_slash(path)
+	if path:sub(-1) == fss and #path > 1 then
+		return path:sub(1, -2)
+	end
+	return path
+end
+
 -- This will hold the configuration.
 local config = wezterm.config_builder()
 
@@ -83,7 +97,7 @@ config.colors = {
 }
 config.color_scheme = "tokyonight"
 
-config.font_size = is_mac and 12 or 10
+config.font_size = is_mac and 14 or 10
 
 local function set_env_path()
 	if is_mac then
@@ -206,18 +220,12 @@ local function get_cwd_string(pane)
 		if path:sub(1, 1) ~= "/" then
 			path = fss .. path:match("/(.*)")
 		end
-		if path:sub(-1) ~= fss then
-			path = path .. fss
-		end
 	end
-	return path
+	return ensure_no_trailing_slash(path)
 end
 
 local function is_git_dir(dir)
-	-- ensure trailing slash is there
-	if dir:sub(-1) ~= fss then
-		dir = dir .. fss
-	end
+	dir = ensure_trailing_slash(dir)
 	local head = dir .. ".git" .. fss .. "HEAD"
 	local f = io.open(head, "a")
 	if f then
@@ -275,6 +283,7 @@ local function get_recent(list)
 end
 
 local function does_session_exist(id)
+	id = ensure_no_trailing_slash(id)
 	debug("Attempting to find session - " .. id)
 	local workspaces = wezterm.mux.get_workspace_names()
 	for _, workspace in ipairs(workspaces) do
@@ -354,7 +363,7 @@ local function prompt_then_change(win, pane, sessions, type)
 	local options = {}
 	for _, dir in ipairs(sessions) do
 		table.insert(options, {
-			label = dir,
+			label = dir:match("([^\\/]+)$") or dir:match("([^\\/]+)[\\/]+$") or dir,
 			id = dir,
 		})
 	end
@@ -433,9 +442,10 @@ local function open_opencode(win, pane, cwd, agent_workspace)
 	)
 end
 
+local agent_session_suffix = "__agent"
+
 local function switch_agent_workspace_not_git(win, pane, cwd)
 	local workspace = win:active_workspace()
-	local agent_session_suffix = "__agent"
 	local agent_workspace = workspace .. agent_session_suffix
 	if workspace:sub(-#agent_session_suffix) == agent_session_suffix then
 		local other_workspace = workspace:sub(1, -(#agent_session_suffix + 1))
@@ -451,15 +461,66 @@ local function switch_agent_workspace_not_git(win, pane, cwd)
 	end
 end
 
--- TODO: prompts user for new worktree name and source branch, creates worktree, and returns new worktree path - ${cwd}\.worktrees\{name}
-local function make_new_worktree(cwd) end
+local function make_new_worktree(cwd, window, pane)
+	debug("Making new worktree for repo: " .. cwd)
+	local default_branch = io.popen("git -C " .. cwd .. " symbolic-ref refs/remotes/origin/HEAD")
+		:read("*a")
+		:match("refs/remotes/origin/(.*)\n")
+	debug("default branch: " .. default_branch)
+	local branches_string = io.popen("git -C " .. cwd .. " branch --format=%(refname:short)"):read("*a")
+	local branches = {}
+	for branch in branches_string:gmatch("(.-)\n") do
+		table.insert(branches, branch)
+	end
+	debug("git branchs output: " .. dump(branches))
+	local checked_out = io.popen("git -C " .. cwd .. " rev-parse --abbrev-ref HEAD"):read("*a"):match("(.*)\n")
+	debug("checked out branch: " .. checked_out)
+	if checked_out == default_branch then
+		checked_out = ""
+	end
+	window:perform_action(
+		act.PromptInputLine({
+			description = "Enter branch name:",
+			initial_value = checked_out,
+			action = wezterm.action_callback(function(win2, pane3, name)
+				if name and name ~= "cancel" and name ~= default_branch then
+					local branch_exists = false
+					for _, branch in ipairs(branches) do
+						if branch == name then
+							branch_exists = true
+							debug("branch exists: " .. name)
+							break
+						end
+					end
+					cwd = ensure_trailing_slash(cwd)
+					local new_worktree_path = cwd .. ".worktrees" .. fss .. name
+					if not branch_exists then
+						-- TODO: fix this as to make new branch from current checked out branch
+						os.execute("git -C " .. cwd .. " -b " .. name .. " --track origin/" .. default_branch)
+					end
+					if name == checked_out then
+						-- TODO: checkout the default branch before creating worktree to avoid git error about already checked out branch
+					end
+					os.execute("git -C " .. cwd .. " worktree add " .. new_worktree_path .. " " .. name)
+					debug("New worktree created at: " .. new_worktree_path)
+					cwd = ensure_no_trailing_slash(cwd)
+					open_opencode(win2, pane3, new_worktree_path, cwd .. agent_session_suffix .. "__" .. name)
+					return
+				end
+			end),
+		}),
+		pane
+	)
+end
 
 local function switch_agent_workspace_git(win, pane, cwd)
 	local workspace = win:active_workspace()
 	while workspace:sub(-1) == fss do
 		workspace = workspace:sub(1, -2)
 	end
-	local agent_session_suffix = "__agent"
+	while cwd:sub(-1) == fss do
+		cwd = cwd:sub(1, -2)
+	end
 	local is_agent_workspace = workspace:find(agent_session_suffix) ~= nil
 	if is_agent_workspace then
 		local other_workspace = workspace:sub(1, win:active_workspace():find(agent_session_suffix) - 1)
@@ -471,6 +532,8 @@ local function switch_agent_workspace_git(win, pane, cwd)
 	end
 	local is_worktree_dir = cwd:find(".worktree") ~= nil
 	if is_worktree_dir then
+		cwd = cwd:match("(.*).worktrees")
+		cwd = ensure_no_trailing_slash(cwd)
 		local agent_workspace = cwd .. agent_session_suffix
 		if does_session_exist(agent_workspace) then
 			goto_session(win, pane, agent_workspace)
@@ -492,16 +555,27 @@ local function switch_agent_workspace_git(win, pane, cwd)
 	}
 	for _, worktree in ipairs(worktrees) do
 		if worktree:find(".worktree") ~= nil then
+			local label = worktree:match(".worktrees/(.*)")
 			table.insert(options, {
-				label = is_windows and worktree:match("([^\\]+)$") or worktree:match("([^/]+)$"),
+				label = label,
 				id = worktree,
 			})
 		end
 	end
-	table.insert(options, {
-		label = "NEW WORKTREE",
-		id = "new_worktree",
-	})
+	local default_branch = io.popen("git -C " .. cwd .. " symbolic-ref refs/remotes/origin/HEAD")
+		:read("*a")
+		:match("refs/remotes/origin/(.*)\n")
+	if default_branch then
+		table.insert(options, {
+			label = "NEW WORKTREE",
+			id = "new_worktree",
+		})
+	else
+		if #worktrees < 2 then
+			open_opencode(win, pane, cwd, cwd .. agent_session_suffix)
+			return
+		end
+	end
 	if #worktrees > 1 then
 		table.insert(options, {
 			label = "CLEAR WORKTREE",
@@ -558,13 +632,7 @@ local function switch_agent_workspace_git(win, pane, cwd)
 						label = ""
 						id = cwd
 					elseif id == "new_worktree" then
-						local new_cwd = make_new_worktree(cwd)
-						if not new_cwd then
-							return
-						end
-						local new_label = is_windows and new_cwd:match("([^\\]+)$") or new_cwd:match("([^/]+)$")
-						local new_workspace = cwd .. agent_session_suffix .. new_label
-						open_opencode(window, pane2, new_cwd, new_workspace)
+						make_new_worktree(cwd, window, pane2)
 						return
 					elseif id == "clear_worktree" then
 						ask_clear_worktrees(window, pane2)
