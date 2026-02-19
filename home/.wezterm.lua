@@ -423,13 +423,13 @@ end
 
 local function opencode_args()
 	if is_windows then
-		return { "C:\\Program Files\\Git\\bin\\bash.exe", "-c", "opencode-cli", "&&", "exit" }
+		return { "C:\\Program Files\\Git\\bin\\bash.exe", "-c", "opencode", "&&", "exit" }
 	else
 		return { "/bin/zsh", "-i", "-c", "opencode" }
 	end
 end
 
-local function open_opencode(win, pane, cwd, agent_workspace)
+local function open_agent(win, pane, cwd, agent_workspace)
 	win:perform_action(
 		act.SwitchToWorkspace({
 			name = agent_workspace,
@@ -457,7 +457,7 @@ local function switch_agent_workspace_not_git(win, pane, cwd)
 	if does_session_exist(agent_workspace) then
 		goto_session(win, pane, agent_workspace)
 	else
-		open_opencode(win, pane, cwd, agent_workspace)
+		open_agent(win, pane, cwd, agent_workspace)
 	end
 end
 
@@ -497,14 +497,17 @@ local function make_new_worktree(cwd, window, pane)
 					if not branch_exists then
 						io.popen("git -C " .. cwd .. " checkout -b " .. name)
 						io.popen("git -C " .. cwd .. " checkout " .. checked_out)
+						io.popen("git -C " .. cwd .. " checkout " .. checked_out)
 					end
 					if name == checked_out then
 						io.popen("git -C " .. cwd .. " checkout " .. default_branch)
+						io.popen("git -C " .. cwd .. " checkout " .. default_branch)
 					end
+					debug("Attempting to create worktree: " .. new_worktree_path)
 					os.execute("git -C " .. cwd .. " worktree add " .. new_worktree_path .. " " .. name)
 					debug("New worktree created at: " .. new_worktree_path)
 					cwd = ensure_no_trailing_slash(cwd)
-					open_opencode(win2, pane3, new_worktree_path, cwd .. agent_session_suffix .. "__" .. name)
+					open_agent(win2, pane3, new_worktree_path, cwd .. agent_session_suffix .. "__" .. name)
 					return
 				end
 			end),
@@ -548,7 +551,7 @@ local function switch_agent_workspace_git(win, pane, cwd)
 		if does_session_exist(agent_workspace) then
 			goto_session(win, pane, agent_workspace)
 		else
-			open_opencode(win, pane, cwd, agent_workspace)
+			open_agent(win, pane, cwd, agent_workspace)
 		end
 		return
 	end
@@ -582,7 +585,7 @@ local function switch_agent_workspace_git(win, pane, cwd)
 		})
 	else
 		if #worktrees < 2 then
-			open_opencode(win, pane, cwd, cwd .. agent_session_suffix)
+			open_agent(win, pane, cwd, cwd .. agent_session_suffix)
 			return
 		end
 	end
@@ -654,7 +657,7 @@ local function switch_agent_workspace_git(win, pane, cwd)
 					if does_session_exist(agent_workspace) then
 						goto_session(window, pane2, agent_workspace)
 					else
-						open_opencode(window, pane2, id, agent_workspace)
+						open_agent(window, pane2, id, agent_workspace)
 					end
 				end
 				return nil
