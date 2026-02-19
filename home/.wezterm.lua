@@ -210,9 +210,7 @@ end
 local function change_window_border(window, pane)
 	local cwd_uri = pane:get_current_working_dir()
 	local cwd = cwd_uri.file_path
-	debug("Checking if window border should be changed for cwd: " .. cwd)
 	local is_worktree = cwd:find(".worktree") ~= nil
-	debug("is worktree: " .. tostring(is_worktree))
 	if is_worktree then
 		window:set_config_overrides({
 			window_frame = {
