@@ -207,6 +207,32 @@ local function change_window_title(tab, pane, tabs)
 	return zoomed .. index .. pane.title
 end
 
+local function change_window_border(window, pane)
+	local cwd_uri = pane:get_current_working_dir()
+	local cwd = cwd_uri.file_path
+	debug("Checking if window border should be changed for cwd: " .. cwd)
+	local is_worktree = cwd:find(".worktree") ~= nil
+	debug("is worktree: " .. tostring(is_worktree))
+	if is_worktree then
+		window:set_config_overrides({
+			window_frame = {
+				border_left_width = "0.5cell",
+				border_right_width = "0.5cell",
+				border_bottom_height = "0.25cell",
+				border_top_height = "0.25cell",
+				border_left_color = "green",
+				border_right_color = "green",
+				border_bottom_color = "green",
+				border_top_color = "green",
+			},
+		})
+	else
+		window:set_config_overrides({
+			window_frame = {},
+		})
+	end
+end
+
 local function get_cwd_string(pane)
 	local cwd = tostring(pane:get_current_working_dir())
 	local path
@@ -832,6 +858,7 @@ config.keys = {
 ---------
 -- window title
 wezterm.on("format-window-title", change_window_title)
+wezterm.on("update-status", change_window_border)
 
 -- Finally, return the configuration to wezterm
 return config
