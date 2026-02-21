@@ -69,9 +69,38 @@ local function ensure_trailing_slash(path)
 	return path
 end
 
-local function ensure_no_trailing_slash(path)
+local function ensure_no_trailing_slash(path, both)
 	if path:sub(-1) == fss and #path > 1 then
 		return path:sub(1, -2)
+	end
+	if both then
+		if is_windows then
+			if path:sub(-1) == "/" and #path > 1 then
+				return path:sub(1, -2)
+			end
+		else
+			if path:sub(-1) == "\\" and #path > 1 then
+				return path:sub(1, -2)
+			end
+		end
+	end
+	return path
+end
+
+local function ensure_no_leading_slash(path, both)
+	if path:sub(1, 1) == fss then
+		return path:sub(2)
+	end
+	if both then
+		if is_windows then
+			if path:sub(1, 1) == "/" then
+				return path:sub(2)
+			end
+		else
+			if path:sub(1, 1) == "\\" then
+				return path:sub(2)
+			end
+		end
 	end
 	return path
 end
@@ -83,6 +112,9 @@ config.default_cwd = Home
 config.scrollback_lines = 10000
 config.window_background_opacity = 0.9
 config.enable_tab_bar = false
+config.use_fancy_tab_bar = false
+config.show_tabs_in_tab_bar = false
+config.show_new_tab_button_in_tab_bar = false
 config.window_padding = {
 	left = 0,
 	right = 0,
@@ -212,10 +244,21 @@ local function change_window_border(window, pane)
 	local cwd = cwd_uri.file_path
 	local is_worktree = cwd:find(".worktree") ~= nil
 	if is_worktree then
+		local worktree_name = cwd:match(".worktrees(.*)")
+		worktree_name = ensure_no_trailing_slash(worktree_name, true)
+		worktree_name = ensure_no_leading_slash(worktree_name, true)
+		local worktreeText = " WORKTREE: " .. worktree_name
+		local paddingText = "        "
+		local text = paddingText .. worktreeText .. paddingText
+		local formatted = wezterm.format({
+			{ Attribute = { Intensity = "Bold" } },
+			{ Foreground = { Color = "green" } },
+			{ Text = text },
+		})
 		window:set_config_overrides({
 			window_frame = {
-				border_left_width = "0.5cell",
-				border_right_width = "0.5cell",
+				border_left_width = "1cell",
+				border_right_width = "1cell",
 				border_bottom_height = "0.5cell",
 				border_top_height = "0.5cell",
 				border_left_color = "green",
@@ -223,10 +266,14 @@ local function change_window_border(window, pane)
 				border_bottom_color = "green",
 				border_top_color = "green",
 			},
+			enable_tab_bar = true,
 		})
+		window:set_right_status(formatted)
+		window:set_left_status(formatted)
 	else
 		window:set_config_overrides({
 			window_frame = {},
+			enable_tab_bar = false,
 		})
 	end
 end
