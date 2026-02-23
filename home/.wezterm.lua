@@ -242,17 +242,22 @@ end
 local function change_window_border(window, pane)
 	local cwd_uri = pane:get_current_working_dir()
 	local cwd = cwd_uri.file_path
-	local is_worktree = cwd:find(".worktree") ~= nil
-	if is_worktree then
+	local is_worktree_dir = cwd:find(".worktree") ~= nil
+	local is_worktree_workspace = window:active_workspace():find(".worktree") ~= nil
+	if is_worktree_dir then
 		local worktree_name = cwd:match(".worktrees(.*)")
 		worktree_name = ensure_no_trailing_slash(worktree_name, true)
 		worktree_name = ensure_no_leading_slash(worktree_name, true)
 		local worktreeText = " WORKTREE: " .. worktree_name
 		local paddingText = "        "
 		local text = paddingText .. worktreeText .. paddingText
+		local color = "green"
+		if not is_worktree_workspace then
+			color = "#85e5f7"
+		end
 		local formatted = wezterm.format({
 			{ Attribute = { Intensity = "Bold" } },
-			{ Foreground = { Color = "green" } },
+			{ Foreground = { Color = color } },
 			{ Text = text },
 		})
 		window:set_config_overrides({
@@ -261,10 +266,10 @@ local function change_window_border(window, pane)
 				border_right_width = "1cell",
 				border_bottom_height = "0.5cell",
 				border_top_height = "0.5cell",
-				border_left_color = "green",
-				border_right_color = "green",
-				border_bottom_color = "green",
-				border_top_color = "green",
+				border_left_color = color,
+				border_right_color = color,
+				border_bottom_color = color,
+				border_top_color = color,
 			},
 			enable_tab_bar = true,
 		})
@@ -515,24 +520,15 @@ end
 
 local agent_session_suffix = "__agent"
 
-local function switch_agent_workspace_not_git(win, pane, cwd)
+local function get_workspace(win)
 	local workspace = win:active_workspace()
-	local agent_workspace = workspace .. agent_session_suffix
-	if workspace:sub(-#agent_session_suffix) == agent_session_suffix then
-		local other_workspace = workspace:sub(1, -(#agent_session_suffix + 1))
-		if does_session_exist(other_workspace) then
-			goto_session(win, pane, other_workspace)
-		end
-		return
+	while workspace:sub(-1) == fss do
+		workspace = workspace:sub(1, -2)
 	end
-	if does_session_exist(agent_workspace) then
-		goto_session(win, pane, agent_workspace)
-	else
-		open_agent(win, pane, cwd, agent_workspace)
-	end
+	return workspace
 end
 
-local function make_new_worktree(cwd, window, pane)
+local function make_new_worktree(cwd, window, pane, init_script_path)
 	debug("Making new worktree for repo: " .. cwd)
 	local default_branch = io.popen("git -C " .. cwd .. " symbolic-ref refs/remotes/origin/HEAD")
 		:read("*a")
@@ -554,32 +550,31 @@ local function make_new_worktree(cwd, window, pane)
 			description = "Enter branch name:",
 			initial_value = checked_out,
 			action = wezterm.action_callback(function(win2, pane3, name)
-				if name and name ~= "cancel" and name ~= default_branch then
-					local branch_exists = false
-					for _, branch in ipairs(branches) do
-						if branch == name then
-							branch_exists = true
-							debug("branch exists: " .. name)
-							break
+				if name and name ~= "cancel" and name ~= default_branch and #name > 0 then
+					debug("running init worktree script: " .. init_script_path)
+					if is_windows then
+						os.execute('cmd /c "' .. init_script_path .. '" "' .. name .. '"')
+					else
+						os.execute('sh "' .. init_script_path .. '" "' .. name .. '"')
+					end
+					-- TODO: handle script failure
+					local folder_name = name
+					if is_windows then
+						folder_name = folder_name:gsub("/", fss)
+					end
+					local new_worktree_path = cwd .. fss .. ".worktrees" .. fss .. folder_name
+					debug("new worktree path: " .. new_worktree_path)
+					local workspace = get_workspace(window)
+					local is_agent_workspace = workspace:find(agent_session_suffix) ~= nil
+					if is_agent_workspace then
+						open_agent(win2, pane3, new_worktree_path, new_worktree_path .. agent_session_suffix)
+					else
+						if does_session_exist(new_worktree_path) then
+							goto_session(win2, pane3, new_worktree_path)
+						else
+							start_session(win2, pane3, new_worktree_path)
 						end
 					end
-					cwd = ensure_trailing_slash(cwd)
-					local new_worktree_path = cwd .. ".worktrees" .. fss .. name
-					if not branch_exists then
-						io.popen("git -C " .. cwd .. " checkout -b " .. name)
-						io.popen("git -C " .. cwd .. " checkout " .. checked_out)
-						io.popen("git -C " .. cwd .. " checkout " .. checked_out)
-					end
-					if name == checked_out then
-						io.popen("git -C " .. cwd .. " checkout " .. default_branch)
-						io.popen("git -C " .. cwd .. " checkout " .. default_branch)
-					end
-					debug("Attempting to create worktree: " .. new_worktree_path)
-					os.execute("git -C " .. cwd .. " worktree add " .. new_worktree_path .. " " .. name)
-					debug("New worktree created at: " .. new_worktree_path)
-					cwd = ensure_no_trailing_slash(cwd)
-					open_agent(win2, pane3, new_worktree_path, cwd .. agent_session_suffix .. "__" .. name)
-					return
 				end
 			end),
 		}),
@@ -588,6 +583,32 @@ local function make_new_worktree(cwd, window, pane)
 end
 
 local function switch_agent_workspace_git(win, pane, cwd)
+	local workspace = get_workspace(win)
+	local is_agent_workspace = workspace:find(agent_session_suffix) ~= nil
+	if not is_agent_workspace then
+		open_agent(win, pane, cwd, cwd .. agent_session_suffix)
+		return
+	end
+	local other_workspace = workspace:sub(1, win:active_workspace():find(agent_session_suffix) - 1)
+	if does_session_exist(other_workspace) then
+		goto_session(win, pane, other_workspace)
+	else
+		start_session(win, pane, cwd)
+	end
+end
+
+local function switch_agent_workspace_not_git(win, pane, cwd)
+	local workspace = win:active_workspace()
+	local is_agent_workspace = workspace:find(agent_session_suffix) ~= nil
+	if is_agent_workspace then
+		local other_workspace = workspace:sub(1, win:active_workspace():find(agent_session_suffix) - 1)
+		goto_session(win, pane, other_workspace)
+	else
+		open_agent(win, pane, cwd, cwd .. agent_session_suffix)
+	end
+end
+
+local function switch_agent_workspace_git_oldNbroken(win, pane, cwd)
 	local workspace = win:active_workspace()
 	while workspace:sub(-1) == fss do
 		workspace = workspace:sub(1, -2)
@@ -738,6 +759,83 @@ local function switch_agent_workspace_git(win, pane, cwd)
 	)
 end
 
+local function prompt_worktree_options(win, pane, cwd, options, init_script_path)
+	win:perform_action(
+		act.InputSelector({
+			title = "Choose a worktree",
+			choices = options,
+			action = wezterm.action_callback(function(window, pane2, id, label)
+				if id then
+					debug("chosen: " .. id)
+					if id == "new_worktree" then
+						make_new_worktree(cwd, window, pane2, init_script_path)
+						return
+					elseif id == "clear_worktree" then
+						local output = io.popen("git -C " .. cwd .. " worktree list --porcelain"):read("*a")
+						local worktrees = {}
+						for path in output:gmatch("worktree (.-)\n") do
+							table.insert(worktrees, path)
+						end
+						local clear_options = {}
+						for _, worktree in ipairs(worktrees) do
+							if worktree:find(".worktree") ~= nil then
+								table.insert(clear_options, {
+									label = worktree,
+									id = worktree,
+								})
+							end
+						end
+						if #clear_options == 0 then
+							debug("No worktrees to clear")
+							return
+						end
+						table.insert(clear_options, {
+							label = "CANCEL",
+							id = "cancel",
+						})
+						window:perform_action(
+							act.InputSelector({
+								title = "Choose a worktree to remove",
+								choices = clear_options,
+								action = wezterm.action_callback(function(_win3, _pane3, id2)
+									if id2 and id2 ~= "cancel" then
+										os.execute("echo n | git -C " .. cwd .. " worktree remove --force " .. id2)
+										if is_windows then
+											os.execute('rmdir /S /Q "' .. id2 .. '"')
+										else
+											os.execute('rm -rf "' .. id2 .. '"')
+										end
+									end
+								end),
+							}),
+							pane2
+						)
+						return
+					end
+					id = cwd .. fss .. ".worktrees" .. fss .. label
+					if is_windows then
+						id = id:gsub("/", "\\")
+					end
+					debug("worktree path: " .. id)
+					local workspace = get_workspace(window)
+					local is_agent_workspace = workspace:find(agent_session_suffix) ~= nil
+					local agent_workspace = id .. agent_session_suffix
+					if is_agent_workspace then
+						open_agent(window, pane2, id, agent_workspace)
+					else
+						if does_session_exist(id) then
+							goto_session(window, pane2, id)
+						else
+							start_session(window, pane2, id)
+						end
+					end
+				end
+			end),
+		}),
+		pane
+	)
+end
+
 local function switch_agent_workspace(win, pane)
 	local cwd = get_cwd_string(pane)
 	local is_git = is_git_dir(cwd)
@@ -747,6 +845,92 @@ local function switch_agent_workspace(win, pane)
 	else
 		switch_agent_workspace_not_git(win, pane, cwd)
 	end
+end
+
+-- worktree management
+local worktree_folder_name = ".worktrees"
+
+local function switch_worktree_off(win, pane, cwd)
+	local workspace = get_workspace(win)
+	local is_agent_workspace = workspace:find(agent_session_suffix) ~= nil
+	local base_workspace = workspace:match("(.*)" .. fss .. worktree_folder_name .. fss .. ".*")
+	if is_agent_workspace then
+		base_workspace = base_workspace .. agent_session_suffix
+	end
+	if does_session_exist(base_workspace) then
+		goto_session(win, pane, base_workspace)
+		return
+	end
+	cwd = cwd:match("(.*)" .. fss .. worktree_folder_name .. fss .. ".*")
+	local is_agent_workspace = base_workspace:find(agent_session_suffix) ~= nil
+	if is_agent_workspace then
+		open_agent(win, pane, cwd, base_workspace)
+		return
+	end
+	start_session(win, pane, cwd)
+end
+
+local function switch_worktree(win, pane)
+	local cwd = get_cwd_string(pane)
+	local workspace = get_workspace(win)
+	local is_worktree_workspace = workspace:find(worktree_folder_name) ~= nil
+	if is_worktree_workspace then
+		switch_worktree_off(win, pane, cwd)
+		return
+	end
+	local is_git = is_git_dir(cwd)
+	if not is_git then
+		return
+	end
+	-- get worktrees
+	local output = io.popen("git -C " .. cwd .. " worktree list --porcelain"):read("*a")
+	local worktrees = {}
+	for path in output:gmatch("worktree (.-)\n") do
+		table.insert(worktrees, path)
+	end
+	local options = {}
+	for _, worktree in ipairs(worktrees) do
+		if worktree:find(".worktree") ~= nil then
+			local label = worktree:match(".worktrees/(.*)")
+			table.insert(options, {
+				label = label,
+				id = worktree,
+			})
+		end
+	end
+	-- get if init worktree script exists
+	local init_script_path
+	if is_windows then
+		init_script_path = cwd .. fss .. "init_worktree.cmd"
+	else
+		init_script_path = cwd .. fss .. "init_worktree.sh"
+	end
+	local f = io.open(init_script_path, "r")
+	local has_init_script = f ~= nil
+	if f then
+		f:close()
+	end
+	-- if both dont exist then return
+	if #options == 0 and not has_init_script then
+		return
+	end
+	-- if only init worktree script exists then ask for new worktree name then return
+	if #options == 0 and has_init_script then
+		make_new_worktree(win, pane, cwd, init_script_path)
+		return
+	end
+	-- if worktress exist ask to switch to existing worktree or create new one or delete.
+	if has_init_script then
+		table.insert(options, {
+			label = "NEW WORKTREE",
+			id = "new_worktree",
+		})
+	end
+	table.insert(options, {
+		label = "CLEAR WORKTREE",
+		id = "clear_worktree",
+	})
+	prompt_worktree_options(win, pane, cwd, options, init_script_path)
 end
 
 ---------
@@ -883,6 +1067,11 @@ config.keys = {
 		key = "a",
 		mods = "ALT",
 		action = wezterm.action_callback(switch_agent_workspace),
+	},
+	{
+		key = "t",
+		mods = "ALT",
+		action = wezterm.action_callback(switch_worktree),
 	},
 	{
 		key = "c",
