@@ -4,10 +4,6 @@
     "@mohak34/opencode-notifier@latest"
   ],
   "autoupdate": true,
-  "keybinds": {
-    "app_exit": "<leader>q",
-    "input_clear": "<leader>backspace"
-  },
   "default_agent": "plan",
   "agent": {
     "build": {
@@ -43,35 +39,29 @@
     }
   },
   "mcp": {
-    "playwright": {
-      "type": "local",
-      "command": [
-        "npx",
-        "@playwright/mcp@latest"
-      ]
-    },
-    "google-search": {
+    "browsermcp": {
       "type": "local",
       "command": [
         "npx",
         "-y",
-        "g-search-mcp"
+        "@browsermcp/mcp@latest",
       ],
-      "enabled": false,
     },
-    "duckduckgo-search": {
+    "chrome-devtools": {
       "type": "local",
       "command": [
         "npx",
         "-y",
-        "@oevortex/ddg_search@latest"
+        "chrome-devtools-mcp@latest",
       ],
-      "enabled": false,
     },
     "context7": {
       "type": "remote",
       "url": "https://mcp.context7.com/mcp",
-      "enabled": true
+    },
+    "grep-app": {
+      "type": "remote",
+      "url": "https://mcp.grep.app"
     },
     "next-devtools": {
       "type": "local",
@@ -80,6 +70,17 @@
         "-y",
         "next-devtools-mcp@latest"
       ]
-    }
+    },
+    "playwright": {
+      "type": "local",
+      "command": [
+        "npx",
+        "@playwright/mcp@latest"
+      ]
+    },
+    "websearch": {
+      "type": "remote",
+      "url": "https://mcp.exa.ai/mcp"
+    },
   }
 }
