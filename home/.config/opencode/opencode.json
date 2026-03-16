@@ -4,7 +4,7 @@
     "@mohak34/opencode-notifier@latest"
   ],
   "autoupdate": true,
-  "default_agent": "plan",
+  "default_agent": "King of the wire throne",
   "agent": {
     "build": {
       "color": "#c099ff",
@@ -76,6 +76,15 @@
       "command": [
         "npx",
         "@playwright/mcp@latest"
+      ]
+    },
+    "webmcp": {
+      "type": "local",
+      "command": [
+        "npx",
+        "-y",
+        "@jason.today/webmcp@latest",
+        "--mcp"
       ]
     },
     "websearch": {
