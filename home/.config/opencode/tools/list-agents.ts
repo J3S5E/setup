@@ -45,6 +45,7 @@ function listAgents(): Agent[] {
 
     if (
       frontmatter.mode === "subagent" &&
+      frontmatter.hidden !== "true" &&
       frontmatter.name &&
       frontmatter.description
     ) {
