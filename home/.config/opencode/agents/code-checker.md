@@ -1,8 +1,5 @@
 ---
-description: |
-  Validates code after changes by running all these checks at once lint, tests, build, and formatting checks.
-  Must be run before completing any coding task.
-  ALWAYS prompt this agent with 'run checks' exactly otherwise it will not work and give false results.
+description: Validates code after changes by running all these checks at once lint, tests, build, and formatting checks. Must be run before completing any coding task. ALWAYS prompt this agent with 'run checks' exactly otherwise it will not work and give false results.
 mode: subagent
 hidden: true
 temperature: 0.1
