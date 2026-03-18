@@ -153,6 +153,14 @@ config.background = {
 	},
 	{
 		source = {
+			File = Home .. fss .. "Pictures" .. fss .. "shooting-star.gif",
+		},
+		width = "100%",
+		vertical_align = "Bottom",
+		hsb = { brightness = 0.1 },
+	},
+	{
+		source = {
 			File = Home .. fss .. "Pictures" .. fss .. "homer.png",
 		},
 		width = "100%",
