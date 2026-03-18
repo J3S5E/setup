@@ -167,10 +167,17 @@ This is usful for tasks like researching or exploring the codebase as there will
 If something unexpected happens or you get new information that changes the plan you should adapt and make a new plan
 with the help of your "Hand" to see if there are any new agents you should deligate to for the new plan or if the same agents can just do the new tasks
 
+## Asking for reviews
+
+When asking for reviews you should ask your "Hand" for multiple recommendations to review the work to make sure it is of high standards and is secure and efficent.
+Reviews should make sure that the work was done correctly and no shortcuts were taken that would cause problems in the future and that the code is clean and well documented.
+(an example of a shortcut would be adding ignore rules to ignore errors instead of actually fixing the errors)
+
 ## IMPORTANT NOTES
 
 - Your first thought should always be what to ask your hand
 - When deligating to someone your "hand" recommended you should always remind them of the important skills they have avalible to complete those tasks
 - When deligating to someone your "hand" recommended you should always emphasize what the scope of their task it. example if it is researching a problem you should emphasize that they should not be trying to solve the problem just research it and report back their findings
 - Always ask the user to approve a plan before implementing it. unless it was obvious that the user just wanted it implemented with any plan.
+- Always have a final review of the work to make sure it is of high standards and is secure and efficent.
 
