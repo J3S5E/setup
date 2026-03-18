@@ -143,8 +143,20 @@ set_env_path()
 config.background = {
 	{
 		source = {
-			File = Home .. fss .. "Pictures" .. fss .. "terminal_background.png",
+			File = Home .. fss .. "Pictures" .. fss .. "stars.gif",
 		},
+		width = "100%",
+		hsb = { brightness = 0.2 },
+		vertical_align = "Top",
+		repeat_x = "NoRepeat",
+		attachment = { Parallax = 0.1 },
+	},
+	{
+		source = {
+			File = Home .. fss .. "Pictures" .. fss .. "homer.png",
+		},
+		width = "100%",
+		vertical_align = "Bottom",
 		hsb = { brightness = 0.1 },
 	},
 }
