@@ -59,11 +59,43 @@ function listAgents(): Agent[] {
   return agents.sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function getAgentDetails(name: string): string {
+  const agentsPath = getAgentsFolder();
+  const files = fs.readdirSync(agentsPath).filter((f) => f.endsWith(".md"));
+
+  for (const file of files) {
+    const content = fs.readFileSync(path.join(agentsPath, file), "utf-8");
+    const frontmatter = parseFrontmatter(content);
+
+    if (
+      frontmatter.mode === "subagent" &&
+      frontmatter.hidden !== "true" &&
+      frontmatter.name === name &&
+      frontmatter.description
+    ) {
+      return content;
+    }
+  }
+  throw new Error(`Agent not found: ${name}`);
+}
+
 export const listAgentsTool = tool({
   description: "Lists all agents in the system",
   args: {},
   async execute() {
     const agents = listAgents();
     return JSON.stringify(agents, null, 2);
+  },
+});
+
+export const getAgentDeepInfo = tool({
+  description: "Gets detailed information about a specific agent",
+  args: {
+    name: tool.schema
+      .string()
+      .describe("The name of the agent to retrieve more information about"),
+  },
+  async execute({ name }) {
+    return getAgentDetails(name);
   },
 });
