@@ -5,6 +5,14 @@
   ],
   "autoupdate": true,
   "default_agent": "King of the wire throne",
+  "permission": {
+    "read": {
+      "*": "allow",
+      "*.env": "deny",
+      "*.env.*": "deny",
+      "*.env.example": "allow"
+    }
+  },
   "agent": {
     "build": {
       "color": "#c099ff",

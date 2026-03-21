@@ -1,14 +1,10 @@
 # Opencode Guide
 
-## Useful Commands
+## GLOSSARY.md
 
-- `/perform-checks`
-    - command to run all checks (lint, formatting, tests, and build checks) at once.
-    - Highly recommended to use this command instead of running checks manually one by one, as it ensures that all checks are run and that no issues are missed.
-    - When making a TODO list that modifies code it is recommended that you add to run this command.
+If a project has this file in their root directory, it is a glossary of terms used in the project.
+This is useful for new contributors to understand the terminology used in the project and to avoid confusion.
+If there is something you don't understand in the project, check the GLOSSARY.md file to see if it is defined there.
 
-## Useful Tasks
-
-### Test-Engineer Task
-
-Delegate to Test-Engineer task to write tests for the codebase.
+Updateing the GLOSSARY.md file is a great way to contribute to the project, as it helps new contributors understand the project better and makes it easier for them to contribute.
+Always ask the user if it is ok to update the GLOSSARY.md file before doing so, as they may have specific guidelines for how they want it to be updated or may not want it to be updated at all.
