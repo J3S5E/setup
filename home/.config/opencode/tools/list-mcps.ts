@@ -2,29 +2,50 @@ import { tool } from "@opencode-ai/plugin";
 import * as fs from "fs";
 import * as path from "path";
 
+interface McpEntry {
+  name: string;
+  description: string;
+  type: string;
+}
+
 function getOpencodeSettingsJson(): string {
   return "C:\\GIT\\setup\\home\\.config\\opencode\\opencode.json";
 }
 
-function listMcps(): string[] {
+function getToolsFolder(): string {
+  return "C:\\GIT\\setup\\home\\.config\\opencode\\tools";
+}
+
+function readMcpRegistry(): Record<string, string> {
+  const registryPath = path.join(getToolsFolder(), "mcp-registry.json");
+  if (fs.existsSync(registryPath)) {
+    const content = fs.readFileSync(registryPath, "utf-8");
+    return new Function(`return (${content})`)();
+  }
+  return {};
+}
+
+function listMcps(): McpEntry[] {
   const settingsJsonPath = getOpencodeSettingsJson();
-  console.error("[listMcps] Path:", settingsJsonPath);
 
   if (!fs.existsSync(settingsJsonPath)) {
     throw new Error(`opencode.json not found: ${settingsJsonPath}`);
   }
 
   const settingsContent = fs.readFileSync(settingsJsonPath, "utf-8");
-
-  // Parse as JavaScript object literal using Function constructor (avoids JSON.parse)
   const config = new Function(`return (${settingsContent})`)();
-  return Object.keys(config.mcp || {});
+  const registry = readMcpRegistry();
+
+  return Object.entries(config.mcp || {}).map(([name, mcp]) => ({
+    name,
+    description: registry[name] || "No description available. Add one to tools/mcp-registry.json",
+    type: (mcp as { type?: string }).type || "unknown",
+  }));
 }
-// example return ["context7", "browsermvp"]
 
 export const listMcpsTool = tool({
   description:
-    "Lists all available MCPs (Multi-Context Programs) in the system.",
+    "Lists all available MCPs (Multi-Context Programs) in the system with their descriptions.",
   args: {},
   async execute() {
     const mcps = listMcps();

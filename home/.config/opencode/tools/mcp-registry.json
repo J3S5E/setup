@@ -1,0 +1,10 @@
+{
+  "browsermcp": "Browser automation using your existing Chrome profile - fast, private, and keeps you logged into sites",
+  "chrome-devtools": "Official Chrome DevTools MCP server - browser automation, performance tracing, network inspection, screenshots",
+  "context7": "Real-time library documentation lookup - fetches up-to-date docs and code examples from official sources",
+  "grep-app": "Code search across public GitHub repositories - find real-world code examples and implementation patterns",
+  "next-devtools": "Next.js development tools for building and debugging Next.js applications",
+  "playwright": "Playwright-based browser automation with accessibility snapshots - fast, LLM-friendly browser interaction",
+  "webmcp": "Connect to websites that expose WebMCP tools - enables AI to use site-specific functionality",
+  "websearch": "Exa AI-powered web search - real-time web search, code search, and company research"
+}
