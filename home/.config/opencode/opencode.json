@@ -6,11 +6,17 @@
   "autoupdate": true,
   "default_agent": "King of the wire throne",
   "permission": {
+    "tools": {
+      "prd-plan*": "deny",
+      "prd-system*": "deny"
+    },
+    "prd-system*": "deny",
     "read": {
       "*": "allow",
       "*.env": "deny",
       "*.env.*": "deny",
-      "*.env.example": "allow"
+      "*.env.example": "allow",
+      "*.env.local": "allow"
     }
   },
   "agent": {
