@@ -27,7 +27,7 @@ Use the `Hand of the King` agent to recommend 5 or more agents appropriate for r
 
 ### Step 3: Dispatch Independent Reviews
 
-Send each selected agent the full ticket details (description, acceptance criteria, plan, tech notes, dependencies) and ask them to explore the repo to evaluate:
+Send each selected agent the ticket's current description, acceptance criteria, plan, tech notes, and dependencies only. Do NOT include any previous planIssues, review feedback, or prior cycle data — agents must evaluate the plan as-is, fresh. Ask them to explore the repo to evaluate:
 
 - Is the plan complete? Does it cover all acceptance criteria?
 - Are the implementation steps feasible and correctly ordered?
@@ -42,22 +42,30 @@ Tell agents to report back on all of these points, even if they think some are n
 
 Collect all agent feedback and identify potential issues. Deduplicate and group related findings.
 
-### Step 5: Validate Issues
+### Step 5: Validate and Categorize Issues
 
-Dispatch 3 or more agents with the full ticket details and the consolidated list of potential issues. Ask them to explore the repo to determine which issues are genuinely valid and require changes to the plan.
+Dispatch 3 or more agents with the full ticket details and the consolidated list of potential issues. Ask them to explore the repo to determine which issues are genuinely valid and require changes to the plan. For each confirmed issue, agents must also classify it as **blocking** or **non-blocking**:
 
-If agents disagree on whether an issue is valid, dispatch an additional agent as a tiebreaker. The majority verdict determines whether the issue should be acted on.
+- **Blocking**: The issue would prevent correct or useful implementation — the plan cannot proceed without addressing it.
+- **Non-blocking**: The issue is worth fixing but implementation could proceed without it.
+
+If agents disagree on whether an issue is valid or on its classification, dispatch an additional agent as a tiebreaker. The majority verdict determines the outcome.
 
 Only issues confirmed as valid by the majority should proceed to the next step.
 
 ### Step 6: Act on Feedback
 
-If no valid issues were found:
-- Call `prd-system_finishPlanReview` to mark the ticket as "Ready For Implementation"
+Call `prd-system_addPlanIssues` with both arrays — pass validated blocking issues and non-blocking issues separately. Both can be empty `[]`.
 
-If valid issues were found:
-- Call `prd-system_addPlanIssues` to store the validated issues on the ticket
-- Call `prd-system_finishPlanReview` to mark the ticket as "Needs Plan Updating"
+Then call `prd-system_finishPlanReview`. Its decision logic:
+
+| Condition | Result |
+|---|---|
+| `blockingIssues` exist AND `planIteration > 6` | Escalates to "Needs Human Plan Review" |
+| `blockingIssues` exist | → "Needs Plan Updating" |
+| `planIteration > 3` | → "Needs Implementing" (force through despite non-blocking issues) |
+| `planIssues` exist | → "Needs Plan Updating" |
+| Otherwise | → "Needs Implementing" |
 
 ### Step 7: Report
 
@@ -75,9 +83,8 @@ If you reached Step 5 three times and agents are still unable to reach consensus
 | 2 | Select reviewers | Hand of the King recommends 5+ agents |
 | 3 | Independent review | Agents explore repo and evaluate plan |
 | 4 | Consolidate | Aggregate and deduplicate findings |
-| 5 | Validate issues | 3+ agents confirm validity; tiebreaker if split |
-| 6a | No issues → | `finishPlanReview` → "Ready For Implementation" |
-| 6b | Valid issues → | `addPlanIssues` + `finishPlanReview` → "Needs Plan Updating" |
+| 5 | Validate & categorize | 3+ agents confirm validity + classify blocking vs non-blocking; tiebreaker if split |
+| 6 | Act on feedback | `addPlanIssues(issues, blockingIssues)` + `finishPlanReview` (see decision table above) |
 | Escalate | 3 failed validation cycles | `escalate` → "Needs Human Plan Review" |
 
 ## Common Mistakes

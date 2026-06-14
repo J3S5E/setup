@@ -6,6 +6,7 @@
   "autoupdate": true,
   "default_agent": "King of the wire throne",
   "permission": {
+    "external_directory": "deny",
     "tools": {
       "prd-plan*": "deny",
       "prd-system*": "deny"

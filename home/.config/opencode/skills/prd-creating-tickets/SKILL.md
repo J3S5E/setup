@@ -26,3 +26,6 @@ you need ticket name and description
 Jira ticket id can also be included
 
 you also need the git repo name - !`gh repo view --json name -q ".name"`
+
+you also need the **targetBranch** - this is the branch the implementation PR will merge into. Check current branch with `git branch --show-current`.
+When creating subtickets, the subtask automatically inherits the parent's featureBranch as its targetBranch (subtaks branch off the parent's feature branch, not off main).

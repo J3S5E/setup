@@ -23,7 +23,7 @@ Get the latest ticket information using `prd-system_getTicket`. Pay close attent
 
 ### Step 2: Understand the Issues
 
-Review each issue in `planIssues` against the stored plan to determine what needs to change. Dispatch 2 or more agents with the full ticket details and ask them to:
+Review each issue in `planIssues` against the stored plan to determine what needs to change. Use the `Hand of the King` agent to recommend 2 or more agents appropriate for understanding these plan issues, then dispatch them with the full ticket details and ask them to:
 - Confirm they understand each issue
 - Identify which parts of the plan need to change
 - Flag any issues that seem unclear or redundant
@@ -38,13 +38,13 @@ If issues are unclear or contradictory, mark the ticket using `prd-system_escala
 Get the latest ticket information using `prd-system_getTicket` to pass to the agents for this step.
 If all issues were marked as invalid in the previous step we need to update the plan with more information so it passes review
 
-Dispatch 2 or more agents to independently propose plan updates. Provide them with:
+Use the `Hand of the King` agent to recommend 2 or more agents appropriate for creating plan updates, then dispatch them to independently propose plan updates. Provide them with:
 - The full ticket details (description, acceptance criteria, current plan, planIssues, tech notes, dependencies)
 - The findings from Step 2
 
 Each agent should explore the repo and produce an updated free-form markdown plan that addresses **every issue** in `planIssues`. The plan should follow the same structure as before: ordered steps, files to create/modify, dependencies, testing approach, and any risks or concerns.
 
-**Important constraints:** Agents must **report their updated plan as text in their response only** — they must not write any files or create any documents on disk. Storage happens in Step 4 via `prd-system_savePlan`.
+**Important constraints:** The updated plan must be a clean, standalone document — do not include any issue-tracking tables, status indicators (like ✅ / ❌ / Resolved), or any reference to `planIssues`. It should be indistinguishable in structure from the original plan, just updated to resolve every issue. Agents must **report their updated plan as text in their response only** — they must not write any files or create any documents on disk. Storage happens in Step 4 via `prd-system_savePlan`.
 
 If agents propose different approaches, dispatch an additional agent as a tiebreaker and converge on a single updated plan.
 
@@ -56,7 +56,7 @@ If the ticket has subtasks, check each subtask's plan — if any need updating t
 
 ### Step 5: Verify the Fix
 
-Get the latest ticket information using `prd-system_getTicket`. Then dispatch 2 or more agents with:
+Get the latest ticket information using `prd-system_getTicket`. Then use the `Hand of the King` agent to recommend 2 or more agents appropriate for verifying plan fixes, then dispatch them with:
 - The full ticket details (including the updated plan)
 - The original `planIssues` list
 
@@ -80,12 +80,12 @@ Report back that the plan has been updated and the ticket is ready for re-review
 ## Quick Reference
 
 | Step | Action | Key Decision |
-|---|---|---|
+|---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` — focus on `planIssues` |
-| 2 | Understand the issues | 2+ agents confirm scope of changes needed |
-| 3 | Fix the plan | 2+ agents produce updated plans; converge on one |
+| 2 | Understand the issues | Hand of the King recommends 2+ agents; confirm scope of changes |
+| 3 | Fix the plan | Hand of the King recommends 2+ agents; converge on updated plan |
 | 4 | Save updated plan | `savePlan` on ticket + each subtask |
-| 5 | Verify the fix | `getTicket` + 2+ agents confirm all issues resolved |
+| 5 | Verify the fix | Hand of the King recommends 2+ agents; confirm all issues resolved |
 | 6 | Finalize | `finalizePlanning` → "Ready Plan Review" |
 | Escalate | 3 failed cycles | `escalate` → "Needs Human Plan creation" / "Needs Human Plan finalization" |
 

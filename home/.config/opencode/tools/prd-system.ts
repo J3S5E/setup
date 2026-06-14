@@ -20,6 +20,15 @@ type Ticket = {
   dependencys?: string[];
   plan?: string;
   planIssues?: string[];
+  blockingIssues?: string[];
+  targetBranch: string;
+  featureBranch: string;
+  worktreeDir: string;
+  branch?: string;
+  reviewComments?: string[];
+  qaNotes?: string[];
+  prUrl?: string;
+  prMerged?: boolean;
 };
 
 function getPrdsFolder(): string {
@@ -67,8 +76,13 @@ export const create = tool({
       .string()
       .optional()
       .describe("Id of the ticket - if you have one"),
+    targetBranch: tool.schema
+      .string()
+      .min(1)
+      .max(100)
+      .describe("Target branch for the PR (where code will be merged into)"),
   },
-  async execute({ gitRepo, name, description, id }) {
+  async execute({ gitRepo, name, description, id, targetBranch }) {
     const existingPrd = id ? getPrd(id, gitRepo) : null;
     if (existingPrd) {
       return `Ticket with ID ${id} already exists. Please use a different ID or omit the ID to generate a new one.`;
@@ -84,6 +98,9 @@ export const create = tool({
       status: "Needs Refinement",
       createdAt: new Date().toISOString(),
       planIteration: 0,
+      targetBranch,
+      featureBranch: "",
+      worktreeDir: "",
     };
 
     updatePrd(prdData, gitRepo);
@@ -259,6 +276,9 @@ export const createSubtask = tool({
       description,
       status: "Needs Refinement",
       createdAt: new Date().toISOString(),
+      targetBranch: prd.featureBranch,
+      featureBranch: "",
+      worktreeDir: "",
     };
 
     if (!prd.subtasks) {
@@ -267,7 +287,7 @@ export const createSubtask = tool({
     prd.subtasks.push(subtask);
     updatePrd(prd, gitRepo);
 
-    return `Subtask created with ID ${subtaskId} for ticket with ID ${id}.`;
+    return `Subtask created with ID ${subtaskId} for ticket with ID ${id}. Inherited targetBranch="${prd.featureBranch}" from parent's featureBranch.`;
   },
 });
 
@@ -294,7 +314,7 @@ export const deleteSubtask = tool({
 
     const status = prd.status;
     if (status !== "Needs Refinement") {
-      return `Ticket with ID ${id} is not in a state that allows subtask creation. Current status: ${status}.`;
+      return `Ticket with ID ${id} is not in a state that allows subtask deletion. Current status: ${status}.`;
     }
 
     const subtaskIndex = prd.subtasks.findIndex(
@@ -308,6 +328,58 @@ export const deleteSubtask = tool({
     updatePrd(prd, gitRepo);
 
     return `Subtask with ID ${subtaskId} deleted from ticket with ID ${id}.`;
+  },
+});
+
+export const assignWorkspace = tool({
+  description:
+    "Assigns a feature branch and worktree directory to a ticket or subtask. Used during planning to determine where implementation work will happen.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to assign workspace for"),
+    featureBranch: tool.schema
+      .string()
+      .min(1)
+      .max(250)
+      .describe("Name of the feature branch to create"),
+    worktreeDir: tool.schema
+      .string()
+      .min(1)
+      .max(500)
+      .describe("Path to the git worktree directory"),
+  },
+  async execute({ id, gitRepo, subtaskId, featureBranch, worktreeDir }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    if (prd.status !== "Needs Plan" && prd.status !== "Needs Plan Updating") {
+      return `Ticket with ID ${id} is not in a state that allows workspace assignment. Current status: ${prd.status}.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
+    }
+
+    ticket.featureBranch = featureBranch;
+    ticket.worktreeDir = worktreeDir;
+    if (subtaskId) {
+      ticket.targetBranch = prd.featureBranch;
+    }
+    updatePrd(prd, gitRepo);
+
+    const target = subtaskId ? `subtask ${subtaskId}` : `ticket ${id}`;
+    return `Workspace assigned for ${target}: featureBranch="${featureBranch}", worktreeDir="${worktreeDir}".`;
   },
 });
 
@@ -349,6 +421,10 @@ export const refineTicket = tool({
     const prd = getPrd(id, gitRepo);
     if (!prd) {
       return `Ticket with ID ${id} not found.`;
+    }
+
+    if (prd.status !== "Needs Refinement") {
+      return `Ticket with ID ${id} is not in a state that allows refinement. Current status: ${prd.status}.`;
     }
 
     const ticket = subtaskId
@@ -455,6 +531,7 @@ export const savePlan = tool({
 
     ticket.plan = plan;
     prd.planIssues = [];
+    prd.blockingIssues = [];
     updatePrd(prd, gitRepo);
 
     const target = subtaskId ? `subtask ${subtaskId}` : `ticket ${id}`;
@@ -487,9 +564,26 @@ export const finalizePlanning = tool({
       return `Ticket with ID ${id} cannot be finalized. Please ensure the plan is saved before finalizing.`;
     }
 
+    if (!prd.targetBranch) {
+      return `Ticket with ID ${id} cannot be finalized. No target branch set.`;
+    }
+
+    if (!prd.featureBranch || !prd.worktreeDir) {
+      return `Ticket with ID ${id} cannot be finalized. Please assign a feature branch and worktree dir via assignWorkspace before finalizing.`;
+    }
+
     for (const subtask of prd.subtasks || []) {
       if (!subtask.plan) {
         return `Subtask with ID ${subtask.id} cannot be finalized. Please ensure a plan is saved for all subtasks.`;
+      }
+      if (!subtask.featureBranch || !subtask.worktreeDir) {
+        return `Subtask with ID ${subtask.id} cannot be finalized. Please assign a feature branch and worktree dir via assignWorkspace before finalizing.`;
+      }
+      if (!subtask.targetBranch) {
+        return `Subtask with ID ${subtask.id} cannot be finalized. Target branch not set — assignWorkspace on the subtask should set it to the parent's featureBranch.`;
+      }
+      if (subtask.targetBranch !== prd.featureBranch) {
+        return `Subtask with ID ${subtask.id} targetBranch="${subtask.targetBranch}" does not match parent's featureBranch="${prd.featureBranch}". Re-run assignWorkspace on the subtask to fix.`;
       }
       subtask.status = "Ready Plan Review";
     }
@@ -504,7 +598,7 @@ export const finalizePlanning = tool({
 
 export const addPlanIssues = tool({
   description:
-    "Records validated issues found during plan review on a ticket. Issues are stored and used by finishPlanReview to determine the next status.",
+    "Records validated issues found during plan review on a ticket. Accepts both non-blocking issues and blocking issues. Used by finishPlanReview to determine the next status.",
   args: {
     id: tool.schema.string().describe("Id of the ticket"),
     gitRepo: tool.schema
@@ -514,10 +608,16 @@ export const addPlanIssues = tool({
       ),
     issues: tool.schema
       .array(tool.schema.string())
-      .min(1)
-      .describe("List of validated issues found during plan review"),
+      .describe(
+        "List of validated non-blocking issues found during plan review — can be empty",
+      ),
+    blockingIssues: tool.schema
+      .array(tool.schema.string())
+      .describe(
+        "List of validated blocking issues found during plan review — can be empty",
+      ),
   },
-  async execute({ id, gitRepo, issues }) {
+  async execute({ id, gitRepo, issues, blockingIssues }) {
     const prd = getPrd(id, gitRepo);
     if (!prd) {
       return `Ticket with ID ${id} not found.`;
@@ -528,15 +628,16 @@ export const addPlanIssues = tool({
     }
 
     prd.planIssues = issues;
+    prd.blockingIssues = blockingIssues;
     updatePrd(prd, gitRepo);
 
-    return `Plan issues recorded for ticket with ID ${id}.`;
+    return `Plan issues recorded for ticket with ID ${id} (${issues.length} non-blocking, ${blockingIssues.length} blocking).`;
   },
 });
 
 export const finishPlanReview = tool({
   description:
-    "Finalizes the plan review of a ticket. If planIssues exist, marks as 'Needs Plan Updating'. If no issues, marks as 'Ready For Implementation'. Clears planIssues after transition.",
+    "Finalizes the plan review of a ticket. Decision logic: blockingIssues + planIteration > 6 → escalate; blockingIssues exist → Needs Plan Updating; planIteration > 3 → Needs Implementing (force through); planIssues exist → Needs Plan Updating; otherwise → Needs Implementing.",
   args: {
     id: tool.schema.string().describe("Id of the ticket to finalize"),
     gitRepo: tool.schema
@@ -555,16 +656,323 @@ export const finishPlanReview = tool({
       return `Ticket with ID ${id} is not in a state that allows finalizing plan review. Current status: ${prd.status}.`;
     }
 
-    if (prd.planIssues && prd.planIssues.length > 0) {
-      const issueCount = prd.planIssues.length;
-      prd.status = "Needs Plan Updating";
+    const hasBlockingIssues =
+      prd.blockingIssues && prd.blockingIssues.length > 0;
+    const hasIssues = prd.planIssues && prd.planIssues.length > 0;
+    const iteration = prd.planIteration;
+
+    // Blocking issues + max iterations reached → escalate to human
+    if (hasBlockingIssues && iteration > 6) {
+      prd.status = "Needs Human Plan Review";
       updatePrd(prd, gitRepo);
-      return `Ticket with ID ${id} marked as Needs Plan Updating (${issueCount} issues recorded — stored in planIssues for the planner to address).`;
+      return `Ticket with ID ${id} escalated to Needs Human Plan Review (${prd.blockingIssues?.length} blocking issues unresolved after ${iteration} iterations).`;
     }
 
-    prd.status = "Ready For Implementation";
+    // Blocking issues exist, still within iteration limit → send back
+    if (hasBlockingIssues) {
+      prd.status = "Needs Plan Updating";
+      updatePrd(prd, gitRepo);
+      return `Ticket with ID ${id} marked as Needs Plan Updating (${prd.blockingIssues?.length} blocking issues to resolve).`;
+    }
+
+    // No blocking issues and past iteration 3 → force through
+    if (iteration > 3) {
+      prd.status = "Needs Implementing";
+      updatePrd(prd, gitRepo);
+      return `Ticket with ID ${id} finalized and marked as Needs Implementing (planIteration ${iteration} > 3, no blocking issues).`;
+    }
+
+    // Non-blocking issues exist, still in early iterations → send back
+    if (hasIssues) {
+      const issueCount = prd.planIssues!.length;
+      prd.status = "Needs Plan Updating";
+      updatePrd(prd, gitRepo);
+      return `Ticket with ID ${id} marked as Needs Plan Updating (${issueCount} non-blocking issues recorded).`;
+    }
+
+    // Clean pass
+    prd.status = "Needs Implementing";
     updatePrd(prd, gitRepo);
 
-    return `Ticket with ID ${id} finalized and marked as Ready For Implementation.`;
+    return `Ticket with ID ${id} finalized and marked as Needs Implementing.`;
+  },
+});
+
+export const completeImplementation = tool({
+  description:
+    "Marks implementation as complete, transitioning the ticket to Needs Review. Accepts optional branch name. If subtaskId is provided, marks the subtask as complete.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to mark as complete"),
+    branch: tool.schema
+      .string()
+      .optional()
+      .describe("Branch name where the implementation was done"),
+  },
+  async execute({ id, gitRepo, branch, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    if (
+      ticket.status !== "Needs Implementing" &&
+      ticket.status !== "Needs Implementation Update"
+    ) {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows completing implementation. Current status: ${ticket.status}.`;
+    }
+
+    if (branch && branch.trim() === "") {
+      return "Branch name must be non-empty if provided.";
+    }
+
+    if (branch) {
+      prd.branch = branch;
+    }
+    ticket.reviewComments = [];
+    ticket.qaNotes = [];
+    ticket.status = "Needs Review";
+    updatePrd(prd, gitRepo);
+
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} marked as Needs Review.`;
+  },
+});
+
+export const reviewImplementation = tool({
+  description:
+    "Reviews an implemented ticket. If passed, transitions to Needs QA. If failed, transitions to Needs Implementation Update with comments.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to review"),
+    passed: tool.schema
+      .boolean()
+      .describe("Whether the implementation passed review"),
+    reviewComments: tool.schema
+      .array(tool.schema.string())
+      .describe("Review comments — required at least 1 if not passed"),
+  },
+  async execute({ id, gitRepo, passed, reviewComments, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    if (ticket.status !== "Needs Review") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows review. Current status: ${ticket.status}.`;
+    }
+
+    if (!passed && (!reviewComments || reviewComments.length === 0)) {
+      return "Review comments are required when the implementation does not pass review.";
+    }
+
+    ticket.reviewComments = reviewComments;
+    ticket.status = passed ? "Needs QA" : "Needs Implementation Update";
+    updatePrd(prd, gitRepo);
+
+    const outcome = passed ? "Needs QA" : "Needs Implementation Update";
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} reviewed and marked as ${outcome}.`;
+  },
+});
+
+export const completeQA = tool({
+  description:
+    "Completes QA for a ticket. If passed, transitions to Needs PR. If failed, transitions to Needs Implementation Update with QA notes.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to QA"),
+    passed: tool.schema.boolean().describe("Whether QA passed"),
+    qaNotes: tool.schema
+      .array(tool.schema.string())
+      .describe("QA notes — required at least 1 if not passed"),
+  },
+  async execute({ id, gitRepo, passed, qaNotes, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    if (ticket.status !== "Needs QA") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows QA. Current status: ${ticket.status}.`;
+    }
+
+    if (!passed && (!qaNotes || qaNotes.length === 0)) {
+      return "QA notes are required when QA does not pass.";
+    }
+
+    ticket.qaNotes = qaNotes;
+    ticket.status = passed ? "Needs PR" : "Needs Implementation Update";
+    updatePrd(prd, gitRepo);
+
+    const outcome = passed ? "Needs PR" : "Needs Implementation Update";
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} QA completed and marked as ${outcome}.`;
+  },
+});
+
+export const completePR = tool({
+  description:
+    "Completes the PR stage. If merged, transitions to Needs Finalizing. If not merged, transitions back to Needs Implementation Update for rework.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask the PR is for"),
+    prUrl: tool.schema.string().describe("URL of the pull request"),
+    prMerged: tool.schema.boolean().describe("Whether the PR was merged"),
+  },
+  async execute({ id, gitRepo, prUrl, prMerged, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    if (ticket.status !== "Needs PR") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows completing a PR. Current status: ${ticket.status}.`;
+    }
+
+    if (!prUrl || prUrl.trim() === "") {
+      return "PR URL is required.";
+    }
+
+    ticket.prUrl = prUrl;
+    ticket.prMerged = prMerged;
+    ticket.status = prMerged
+      ? "Needs Finalizing"
+      : "Needs Implementation Update";
+    updatePrd(prd, gitRepo);
+
+    const outcome = prMerged
+      ? "Needs Finalizing"
+      : "Needs Implementation Update";
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} PR completed and marked as ${outcome}.`;
+  },
+});
+
+export const finalizeTicket = tool({
+  description:
+    "Finalizes a ticket, transitioning it to Done. This is the final stage of the ticket lifecycle.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to finalize"),
+  },
+  async execute({ id, gitRepo, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    if (ticket.status !== "Needs Finalizing") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows finalizing. Current status: ${ticket.status}.`;
+    }
+
+    ticket.status = "Done";
+    updatePrd(prd, gitRepo);
+
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} finalized and marked as Done.`;
+  },
+});
+
+export const cancelTicket = tool({
+  description:
+    "Cancels a ticket or subtask from any non-terminal status, moving it to Cancelled. Requires a reason.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to cancel"),
+    reason: tool.schema.string().describe("Reason for cancellation"),
+  },
+  async execute({ id, gitRepo, reason, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    const terminalStatuses = ["Done", "Cancelled"];
+    if (terminalStatuses.includes(ticket.status)) {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is already in a terminal state (${ticket.status}) and cannot be cancelled.`;
+    }
+
+    if (!reason || reason.trim() === "") {
+      return "Cancellation reason is required.";
+    }
+
+    ticket.status = "Cancelled";
+    updatePrd(prd, gitRepo);
+
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} cancelled. Reason: ${reason}`;
   },
 });
