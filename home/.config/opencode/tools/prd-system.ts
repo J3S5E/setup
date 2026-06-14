@@ -6,6 +6,7 @@ type Prd = Ticket & {
   gitRepo: string;
   jiraTicket?: string;
   subtasks?: Ticket[];
+  planIteration: number;
 };
 
 type Ticket = {
@@ -17,6 +18,8 @@ type Ticket = {
   estimation?: string;
   techNotes?: string[];
   dependencys?: string[];
+  plan?: string;
+  planIssues?: string[];
 };
 
 function getPrdsFolder(): string {
@@ -80,6 +83,7 @@ export const create = tool({
       description,
       status: "Needs Refinement",
       createdAt: new Date().toISOString(),
+      planIteration: 0,
     };
 
     updatePrd(prdData, gitRepo);
@@ -135,6 +139,14 @@ export const escalate = tool({
       } else {
         prdData.status = "Needs Human Title and Description refinement";
       }
+    } else if (status === "Needs Plan") {
+      if (prdData.plan) {
+        prdData.status = "Needs Human Plan finalization";
+      } else {
+        prdData.status = "Needs Human Plan creation";
+      }
+    } else if (status === "Ready Plan Review") {
+      prdData.status = "Needs Human Plan Review";
     }
 
     updatePrd(prdData, gitRepo);
@@ -400,5 +412,159 @@ export const finalizeRefinement = tool({
     updatePrd(prd, gitRepo);
 
     return `Ticket with ID ${id} finalized and marked as Ready.`;
+  },
+});
+
+export const savePlan = tool({
+  description:
+    "Saves an implementation plan for a ticket or subtask. The plan is free-form markdown describing the implementation approach, ordered steps, files to change, and testing strategy. Can also be used to update an existing plan when a ticket is in 'Needs Plan Updating' status.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema
+      .string()
+      .describe(
+        "The name of the Git repository to filter PRDs by. If not provided, lists all PRDs.",
+      ),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "Id of the subtask to save the plan for - if saving for a subtask",
+      ),
+    plan: tool.schema
+      .string()
+      .min(10)
+      .describe("Free-form markdown implementation plan"),
+  },
+  async execute({ id, gitRepo, plan, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    if (prd.status !== "Needs Plan" && prd.status !== "Needs Plan Updating") {
+      return `Ticket with ID ${id} is not in a state that allows saving a plan. Current status: ${prd.status}.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    ticket.plan = plan;
+    prd.planIssues = [];
+    updatePrd(prd, gitRepo);
+
+    const target = subtaskId ? `subtask ${subtaskId}` : `ticket ${id}`;
+    return `Plan saved for ${target}.`;
+  },
+});
+
+export const finalizePlanning = tool({
+  description:
+    "Finalizes the planning of a ticket, marking it as ready for plan review. Validates that the ticket and all subtasks have a plan before transitioning status. Can also be used to finalize an updated plan when a ticket is in 'Needs Plan Updating' status.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket to finalize"),
+    gitRepo: tool.schema
+      .string()
+      .describe(
+        "The name of the Git repository to filter PRDs by. If not provided, lists all PRDs.",
+      ),
+  },
+  async execute({ id, gitRepo }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    if (prd.status !== "Needs Plan" && prd.status !== "Needs Plan Updating") {
+      return `Ticket with ID ${id} is not in a state that allows finalizing planning. Current status: ${prd.status}.`;
+    }
+
+    if (!prd.plan) {
+      return `Ticket with ID ${id} cannot be finalized. Please ensure the plan is saved before finalizing.`;
+    }
+
+    for (const subtask of prd.subtasks || []) {
+      if (!subtask.plan) {
+        return `Subtask with ID ${subtask.id} cannot be finalized. Please ensure a plan is saved for all subtasks.`;
+      }
+      subtask.status = "Ready Plan Review";
+    }
+
+    prd.status = "Ready Plan Review";
+    prd.planIteration++;
+    updatePrd(prd, gitRepo);
+
+    return `Ticket with ID ${id} finalized and marked as Ready Plan Review.`;
+  },
+});
+
+export const addPlanIssues = tool({
+  description:
+    "Records validated issues found during plan review on a ticket. Issues are stored and used by finishPlanReview to determine the next status.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema
+      .string()
+      .describe(
+        "The name of the Git repository to filter PRDs by. If not provided, lists all PRDs.",
+      ),
+    issues: tool.schema
+      .array(tool.schema.string())
+      .min(1)
+      .describe("List of validated issues found during plan review"),
+  },
+  async execute({ id, gitRepo, issues }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    if (prd.status !== "Ready Plan Review") {
+      return `Ticket with ID ${id} is not in a state that allows adding plan issues. Current status: ${prd.status}.`;
+    }
+
+    prd.planIssues = issues;
+    updatePrd(prd, gitRepo);
+
+    return `Plan issues recorded for ticket with ID ${id}.`;
+  },
+});
+
+export const finishPlanReview = tool({
+  description:
+    "Finalizes the plan review of a ticket. If planIssues exist, marks as 'Needs Plan Updating'. If no issues, marks as 'Ready For Implementation'. Clears planIssues after transition.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket to finalize"),
+    gitRepo: tool.schema
+      .string()
+      .describe(
+        "The name of the Git repository to filter PRDs by. If not provided, lists all PRDs.",
+      ),
+  },
+  async execute({ id, gitRepo }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    if (prd.status !== "Ready Plan Review") {
+      return `Ticket with ID ${id} is not in a state that allows finalizing plan review. Current status: ${prd.status}.`;
+    }
+
+    if (prd.planIssues && prd.planIssues.length > 0) {
+      const issueCount = prd.planIssues.length;
+      prd.status = "Needs Plan Updating";
+      updatePrd(prd, gitRepo);
+      return `Ticket with ID ${id} marked as Needs Plan Updating (${issueCount} issues recorded — stored in planIssues for the planner to address).`;
+    }
+
+    prd.status = "Ready For Implementation";
+    updatePrd(prd, gitRepo);
+
+    return `Ticket with ID ${id} finalized and marked as Ready For Implementation.`;
   },
 });

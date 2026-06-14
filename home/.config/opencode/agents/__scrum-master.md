@@ -47,13 +47,15 @@ To get the next ticket to be worked on call the tool 'prd-get-ticket' to get a t
 The ticket will be in a few different states, depending on the state use the matching skill
 
 Skills for each status:
-- Needs Refinement - prd-refining
-- Needs Planning - PRD-Planning
-- Needs Implementing - PRD-Implementing
-- Needs Review - PRD-Review
-- Needs QA - PRD-QA-Tickets
-- Needs PR - PRD-PR-Tickets
-- Needs Finalizing - PRD-Finalizing-Tickets
+- Needs Refinement - prd-refining-tickets
+- Needs Planning - prd-planning-tickets
+- Ready Plan Review - prd-reviewing-plan
+- Needs Plan Updating - prd-updating-plans
+- Needs Implementing - 
+- Needs Review - 
+- Needs QA - 
+- Needs PR - 
+- Needs Finalizing - 
 
 # Important
 
