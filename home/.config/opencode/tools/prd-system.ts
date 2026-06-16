@@ -2,6 +2,25 @@ import { tool } from "@opencode-ai/plugin";
 import * as fs from "fs";
 import * as path from "path";
 
+type Suggestion = {
+  suggestionId: string;
+  message: string;
+  source: "planning" | "implementation" | "review" | "qa";
+  createdAt: string;
+  resolvedAt?: string;
+};
+
+type Deviation = {
+  deviationId: string;
+  planItem: string;
+  action: "omitted" | "replaced";
+  replacement?: string;
+  reason: string;
+  createdAt: string;
+  reviewResult?: { accepted: boolean; comment?: string };
+  qaResult?: { validated: boolean; comment?: string };
+};
+
 type Prd = Ticket & {
   gitRepo: string;
   jiraTicket?: string;
@@ -19,6 +38,8 @@ type Ticket = {
   techNotes?: string[];
   dependencys?: string[];
   plan?: string;
+  suggestions?: Suggestion[];
+  deviations?: Deviation[];
   planIssues?: string[];
   blockingIssues?: string[];
   targetBranch: string;
@@ -974,5 +995,214 @@ export const cancelTicket = tool({
 
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
     return `${label} cancelled. Reason: ${reason}`;
+  },
+});
+
+export const addSuggestion = tool({
+  description:
+    "Adds an out-of-scope observation (suggestion) to a ticket. Call this when you find something worth fixing that is outside the ticket's acceptance criteria. Suggestions are surfaced in the PR description as 'Things to consider before merging'.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    message: tool.schema
+      .string()
+      .min(10)
+      .max(500)
+      .describe("The suggestion message describing the out-of-scope observation"),
+    source: tool.schema
+      .string()
+      .describe("Source of the suggestion: planning, implementation, review, or qa"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask if the suggestion originates from a subtask"),
+  },
+  async execute({ id, gitRepo, message, source, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+    if (!["planning", "implementation", "review", "qa"].includes(source)) {
+      return `Invalid source: ${source}. Must be one of: planning, implementation, review, qa.`;
+    }
+    if (!prd.suggestions) {
+      prd.suggestions = [];
+    }
+    const suggestion = {
+      suggestionId: crypto.randomUUID(),
+      message,
+      source,
+      createdAt: new Date().toISOString(),
+    };
+    prd.suggestions.push(suggestion);
+    updatePrd(prd, gitRepo);
+    return `Suggestion added with ID ${suggestion.suggestionId}.`;
+  },
+});
+
+export const resolveSuggestion = tool({
+  description:
+    "Marks a suggestion as resolved (e.g., because it was fixed during implementation). Resolved suggestions appear under 'Items resolved during implementation' in the PR instead of 'Things to consider before merging'.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    suggestionId: tool.schema
+      .string()
+      .describe("Id of the suggestion to mark as resolved"),
+  },
+  async execute({ id, gitRepo, suggestionId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+    if (!prd.suggestions) {
+      return `No suggestions found for ticket with ID ${id}.`;
+    }
+    const suggestion = prd.suggestions.find(
+      (s: any) => s.suggestionId === suggestionId,
+    );
+    if (!suggestion) {
+      return `Suggestion with ID ${suggestionId} not found.`;
+    }
+    if (suggestion.resolvedAt) {
+      return `Suggestion with ID ${suggestionId} is already resolved.`;
+    }
+    suggestion.resolvedAt = new Date().toISOString();
+    updatePrd(prd, gitRepo);
+    return `Suggestion with ID ${suggestionId} marked as resolved.`;
+  },
+});
+
+export const addDeviation = tool({
+  description:
+    "Records a deviation from the implementation plan. Call this when you intentionally skip or replace a planned step. Deviations are evaluated during review and QA before being included in the PR.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    planItem: tool.schema
+      .string()
+      .min(5)
+      .max(250)
+      .describe("The plan item that was intentionally not followed"),
+    action: tool.schema
+      .string()
+      .describe("Whether the plan item was omitted or replaced"),
+    reason: tool.schema
+      .string()
+      .min(10)
+      .max(500)
+      .describe("Why the deviation was necessary"),
+    replacement: tool.schema
+      .string()
+      .optional()
+      .describe("What was done instead (if action is 'replaced')"),
+  },
+  async execute({ id, gitRepo, planItem, action, reason, replacement }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+    if (!["omitted", "replaced"].includes(action)) {
+      return `Invalid action: ${action}. Must be 'omitted' or 'replaced'.`;
+    }
+    if (!prd.deviations) {
+      prd.deviations = [];
+    }
+    const deviation = {
+      deviationId: crypto.randomUUID(),
+      planItem,
+      action,
+      replacement,
+      reason,
+      createdAt: new Date().toISOString(),
+    };
+    prd.deviations.push(deviation);
+    updatePrd(prd, gitRepo);
+    return `Deviation recorded with ID ${deviation.deviationId}. This deviation must be reviewed during the Review stage.`;
+  },
+});
+
+export const reviewDeviation = tool({
+  description:
+    "Reviews a recorded deviation during the Review stage. If rejected, the deviation must be addressed before the ticket can proceed.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    deviationId: tool.schema
+      .string()
+      .describe("Id of the deviation to review"),
+    accepted: tool.schema
+      .boolean()
+      .describe("Whether the deviation is acceptable"),
+    comment: tool.schema
+      .string()
+      .optional()
+      .describe("Optional comment explaining the review decision"),
+  },
+  async execute({ id, gitRepo, deviationId, accepted, comment }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+    if (!prd.deviations) {
+      return `No deviations found for ticket with ID ${id}.`;
+    }
+    const deviation = prd.deviations.find(
+      (d: any) => d.deviationId === deviationId,
+    );
+    if (!deviation) {
+      return `Deviation with ID ${deviationId} not found.`;
+    }
+    if (deviation.reviewResult) {
+      return `Deviation with ID ${deviationId} has already been reviewed.`;
+    }
+    deviation.reviewResult = { accepted, comment };
+    updatePrd(prd, gitRepo);
+    const outcome = accepted ? "accepted" : "rejected";
+    return `Deviation with ID ${deviationId} reviewed and ${outcome}.`;
+  },
+});
+
+export const qaDeviation = tool({
+  description:
+    "Validates a deviation during the QA stage. Confirms the deviation didn't break anything.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    deviationId: tool.schema
+      .string()
+      .describe("Id of the deviation to QA"),
+    validated: tool.schema
+      .boolean()
+      .describe("Whether QA validates the deviation is safe"),
+    comment: tool.schema
+      .string()
+      .optional()
+      .describe("Optional comment explaining the QA decision"),
+  },
+  async execute({ id, gitRepo, deviationId, validated, comment }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+    if (!prd.deviations) {
+      return `No deviations found for ticket with ID ${id}.`;
+    }
+    const deviation = prd.deviations.find(
+      (d: any) => d.deviationId === deviationId,
+    );
+    if (!deviation) {
+      return `Deviation with ID ${deviationId} not found.`;
+    }
+    if (!deviation.reviewResult) {
+      return `Deviation with ID ${deviationId} has not been reviewed yet. Cannot QA before review.`;
+    }
+    if (deviation.qaResult) {
+      return `Deviation with ID ${deviationId} has already been QA'd.`;
+    }
+    deviation.qaResult = { validated, comment };
+    updatePrd(prd, gitRepo);
+    const outcome = validated ? "validated" : "flagged";
+    return `Deviation with ID ${deviationId} QA'd and ${outcome}.`;
   },
 });

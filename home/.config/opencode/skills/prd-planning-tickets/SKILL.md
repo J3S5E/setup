@@ -37,8 +37,11 @@ Have all agents report back on:
 - What components are related to the ticket?
 - What tests are related to the ticket?
 - What documentation is related to the ticket?
+- What out-of-scope observations did you find? (pre-existing bugs, deprecated APIs, tech debt near the affected code — anything worth knowing that is outside this ticket's acceptance criteria)
 
 Collect these findings so you can pass them as context when dispatching agents in later steps. This avoids each later agent rediscovering the same ground.
+
+**Suggestions:** After collecting all agent reports, identify unique out-of-scope observations. Before calling `prd-system_addSuggestion`, filter each one: **"Does this observation affect whether the plan will work or the implementation approach?"** If yes → it is not a suggestion. Handle it through the normal planning flow (log as a plan risk/concern, include in planIssues/blockingIssues, or escalate). If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` to capture it. Suggestions accumulate across stages and are surfaced in the final PR description as "Things to consider before merging". Do not modify the plan to address suggestions — they are out-of-scope by definition.
 
 Important that you ask each agent to report back on all of these points, even if they think some of them are not relevant. You want to make sure you have a comprehensive understanding of the codebase landscape for implementation, and you don't want to miss anything that could be important for later steps.
 
@@ -54,12 +57,15 @@ Use the `Hand of the King` agent to recommend 3 or more agents appropriate for d
 - Dependencies between steps
 - Testing approach
 - Any risks or concerns
+- Out-of-scope observations (pre-existing bugs, deprecated APIs, tech debt near the affected code — report these so the scrum master can capture them as suggestions)
 
 **Important constraints:** The plan must be a clean, standalone document — do not include any issue-tracking tables, status indicators, or references to feedback items. It should look like a forward-looking implementation plan, not a diff or changelog. Agents must **report their plan as text in their response only** — they must not write any files, create any documents, or invoke the `writing-plans` skill. No code, no plan files, no markdown files on disk. The plan is a proposal delivered in the agent's message; storage happens later in Step 5 via `prd-system_savePlan`.
 
 **Purpose:** Generate multiple independent perspectives on how to implement the ticket. Different agents may spot different edge cases, risks, or better approaches.
 
 Tell agents their plan is a proposal — it will be reviewed and potentially merged with other plans. Encourage them to be thorough but also pragmatic.
+
+After collecting all plans, filter out-of-scope observations: if an observation would block or invalidate the plan, handle it through the normal flow (escalate or flag as a plan issue). Only call `prd-system_addSuggestion` with source="planning" for observations that are purely informational and non-blocking. These will be surfaced in the PR description.
 
 ### Step 4: Consolidate Plans
 
@@ -183,3 +189,4 @@ Do not process the ticket any further, only when asked to process the ticket aga
 - **Creating nested plans.** Plans are flat per ticket/sub-ticket. Do not create sub-plans within plans.
 - **Over-engineering the plan.** The plan should be a practical implementation guide, not a detailed technical specification. Keep it actionable but not overly prescriptive.
 - **Agents writing files during planning.** Agents must only report their plan as text in their response. They must not write plan files, code, or any other files to disk — that happens during development, not planning. Explicitly forbid the `writing-plans` skill and file writes in your instructions to plan-drafting agents.
+- **Scope creep during planning.** When agents find pre-existing bugs, deprecated APIs, or tech debt near affected code, do not expand the plan to address them. If the finding is truly non-blocking and out-of-scope, capture it as a suggestion via `prd-system_addSuggestion` with source="planning". If the finding blocks or invalidates the plan, handle it through the normal flow (escalate or flag as a plan issue) — do **not** use suggestions as a substitute for proper issue tracking.

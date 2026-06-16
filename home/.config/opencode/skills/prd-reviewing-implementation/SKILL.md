@@ -27,7 +27,7 @@ Use the `Hand of the King` agent to recommend 5 or more agents appropriate for r
 
 ### Step 3: Dispatch Independent Reviews
 
-Send each selected agent the ticket's current description, acceptance criteria, plan, tech notes, and the implementation branch/checkout path only. Do NOT include any previous reviewComments, qaNotes, or prior cycle data — agents must evaluate the implementation as-is, fresh. Ask them to explore the repo to evaluate:
+Send each selected agent the ticket's current description, acceptance criteria, plan, tech notes, the implementation branch/checkout path, and any recorded deviations. Do NOT include any previous reviewComments, qaNotes, or prior cycle data — agents must evaluate the implementation as-is, fresh. Ask them to explore the repo to evaluate:
 
 - Does the implementation meet all acceptance criteria?
 - Is the code well-structured and maintainable?
@@ -35,12 +35,24 @@ Send each selected agent the ticket's current description, acceptance criteria, 
 - Are tests adequate and passing?
 - Does the implementation follow the plan? If not, are deviations justified?
 - Are there any security, performance, or accessibility concerns?
+- **For each recorded deviation:** is it justified? Accept or reject each one and explain why
+- **What out-of-scope observations did you find?** (pre-existing bugs, tech debt, unrelated issues — note these separately from pass/fail findings)
 
 Tell agents to report back on all of these points, even if they think some are not relevant.
 
+### Step 3b: Record Deviation Reviews and Suggestions
+
+After collecting independent review reports:
+
+**Deviations:** For each recorded deviation on the ticket, check the agents' verdicts. If agents disagree on a deviation, dispatch an additional agent as a tiebreaker. Call `prd-system_reviewDeviation` for each deviation with the majority verdict. If any deviation is rejected, record it as a review issue — rejected deviations mean the implementer must address them.
+
+If the ticket has deviations but none of the agents evaluated them (they were not dispatched with deviation context), dispatch 2+ agents specifically to review each deviation.
+
+**Suggestions:** For each unique out-of-scope observation reported by agents, first filter: **"Does this observation affect whether the implementation meets acceptance criteria or should it block the ticket from proceeding?"** If yes → it belongs in review comments (which determine pass/fail), not in suggestions. If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="review". These accumulate and are surfaced in the PR description. Do not include out-of-scope observations in review comments.
+
 ### Step 4: Consolidate Feedback
 
-Collect all agent feedback and identify potential issues. Deduplicate and group related findings into a set of review comments.
+Collect all agent feedback and identify potential issues. Deduplicate and group related findings into a set of review comments. Include any rejected deviations as review issues.
 
 ### Step 5: Validate Issues
 
@@ -52,11 +64,11 @@ Only issues confirmed as valid by the majority should be included in the final r
 
 ### Step 6: Act on Feedback
 
-If no valid issues were found:
+If no valid issues were found and no deviations were rejected:
 - Call `prd-system_reviewImplementation` with `passed: true` to mark the ticket as "Needs QA"
 
-If valid issues were found:
-- Call `prd-system_reviewImplementation` with `passed: false` and the consolidated review comments to mark the ticket as "Needs Implementation Update"
+If valid issues were found or any deviation was rejected:
+- Call `prd-system_reviewImplementation` with `passed: false` and the consolidated review comments (including rejected deviations) to mark the ticket as "Needs Implementation Update"
 
 ### Step 7: Report
 
@@ -69,14 +81,15 @@ If you reached Step 5 three times and agents are still unable to reach consensus
 ## Quick Reference
 
 | Step | Action | Key Decision |
-|---|---|---|
+|---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` |
 | 2 | Select reviewers | Hand of the King recommends 5+ agents |
-| 3 | Independent review | Agents explore repo and evaluate implementation |
-| 4 | Consolidate | Aggregate and deduplicate findings |
+| 3 | Independent review | Agents evaluate implementation + deviations; flag out-of-scope observations |
+| 3b | Record deviations & suggestions | `reviewDeviation` per deviation; `addSuggestion` for out-of-scope findings |
+| 4 | Consolidate | Aggregate and deduplicate findings + rejected deviations |
 | 5 | Validate issues | 3+ agents confirm validity; tiebreaker if split |
-| 6a | No issues → | `reviewImplementation(passed: true)` → "Needs QA" |
-| 6b | Valid issues → | `reviewImplementation(passed: false, comments)` → "Needs Implementation Update" |
+| 6a | No issues + all deviations accepted → | `reviewImplementation(passed: true)` → "Needs QA" |
+| 6b | Valid issues or rejected deviation → | `reviewImplementation(passed: false, comments)` → "Needs Implementation Update" |
 | Escalate | 3 failed validation cycles | `escalate` → "Needs Human Clarification" |
 
 ## Common Mistakes
@@ -86,3 +99,5 @@ If you reached Step 5 three times and agents are still unable to reach consensus
 - **Sharing review outcomes between agents during Step 3.** Each reviewer should explore independently — you want divergent perspectives, not groupthink.
 - **Focusing on style over substance.** Prioritize correctness, completeness, and security over personal code style preferences.
 - **Not checking tests.** If tests are missing or failing, that's a review finding even if the implementation looks correct.
+- **Mixing suggestions into review comments.** If an out-of-scope observation affects whether the implementation meets acceptance criteria, include it in review comments (pass/fail). Only if it's purely informational and non-blocking should it be captured as a suggestion via `prd-system_addSuggestion`.
+- **Skipping deviation review.** If the ticket has deviations, they must be independently reviewed and recorded via `prd-system_reviewDeviation`. A rejected deviation is a review finding — don't let it slip through.

@@ -66,18 +66,31 @@ Use the `Hand of the King` agent to recommend 3 or more agents appropriate for i
 - Create or modify files as specified
 - Write tests as described in the plan's testing approach
 - Report back on what they implemented and any deviations from the plan
+- **Do NOT fix anything outside the ticket's acceptance criteria.** If you find pre-existing bugs, deprecated APIs, tech debt, or refactoring opportunities, note them as out-of-scope observations in your report — do not fix them
+- **If you intentionally skip or replace a planned step**, clearly state which plan item was deviated from and why
 
 Collect their implementations. If agents propose different approaches, dispatch an additional agent as a tiebreaker to determine the best implementation.
+
+#### After implementation: capture suggestions, deviations, and resolutions
+
+After collecting agent reports and finalizing the implementation, process observations:
+
+**Suggestions:** For each unique out-of-scope observation reported by agents, first filter: **"Does this observation block the implementation or affect whether the acceptance criteria can be met?"** If yes → it is not a suggestion — handle it through the normal flow (callback to the Scrum Master to address before proceeding). If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="implementation". These will be surfaced in the PR description as "Things to consider before merging".
+
+**Resolved suggestions:** If an agent fixed an existing suggestion (one added earlier in planning), call `prd-system_resolveSuggestion` to mark it as resolved. Resolved suggestions appear under "Items resolved during implementation" in the PR description instead.
+
+**Deviations:** For each intentional deviation from the plan, call `prd-system_addDeviation` to record it. This must include: which plan item was skipped or replaced, why, and what was done instead (if replaced). Deviations are evaluated during Review — if the reviewer rejects a deviation, it must be addressed before proceeding.
 
 ### Step 3: Verify Against Acceptance Criteria
 
 Get the latest ticket information using `prd-system_getTicket`.
 
-Use the `Hand of the King` agent to recommend 2 or more agents appropriate for verifying this implementation, then dispatch them with the chosen implementation and the full ticket details. Ask them to verify:
+Use the `Hand of the King` agent to recommend 2 or more agents appropriate for verifying this implementation, then dispatch them with the chosen implementation, the full ticket details, and any recorded deviations. Ask them to verify:
 - Does the implementation meet all acceptance criteria?
 - Do all tests pass?
 - Are there any edge cases not handled?
 - Are there any regressions introduced?
+- Are recorded deviations safe and justified? (check each one)
 
 If the implementation does not meet all acceptance criteria, dispatch additional agents to fix specific gaps. Repeat until all criteria are met.
 
@@ -105,6 +118,7 @@ Report back that the implementation is complete and the ticket is ready for revi
 - **Merging subtask branches into the wrong target.** A subtask's `targetBranch` is the parent's `featureBranch`, not `main`. The parent ticket's `targetBranch` is `main` (or the project's main integration branch).
 - **Missing the ticket's workspace info.** Always check `featureBranch` and `worktreeDir` on the ticket before starting implementation.
 - **Skipping Step 1 understanding.** Jumping straight into implementation without confirming plan understanding leads to wasted work. Always align first.
-- **Over-engineering.** Stick to the plan and acceptance criteria. Resist the urge to add extra features or refactor unrelated code.
+- **Over-engineering (scope creep).** Stick to the plan and acceptance criteria. Resist the urge to add extra features or refactor unrelated code. If you find something worth fixing outside scope but it's purely informational and non-blocking, capture it as a suggestion via `prd-system_addSuggestion` instead. If it blocks the implementation, raise it through the normal flow — do not use suggestions as a workaround for blockers.
 - **Not writing tests.** The plan specifies a testing approach — follow it. Untested changes cannot be verified.
-- **Not reporting deviations.** If the plan needs to change during implementation, report back for clarification rather than silently diverging.
+- **Not reporting deviations.** If the plan needs to change during implementation, call `prd-system_addDeviation` to record it. Silent divergence from the plan causes rework later.
+- **Fixing out-of-scope issues inline.** Fixing pre-existing bugs or refactoring unrelated code bloats the ticket and delays the PR. If the observation is non-blocking, capture it as a suggestion, not an implementation change. If it's blocking, raise it — don't silently fix it.

@@ -66,8 +66,10 @@ async function main() {
       break;
     }
 
-    const cmd = `opencode --agent "Scrum Master" run "process ticket -- id - ${prd.id} repo - ${repoName}"`;
-    console.log(`\n--- Processing: ${prd.id} - ${prd.name} (${prd.status}) ---`);
+    const cmd = `opencode --agent "Scrum Master" run "process ticket -- id - ${prd.id} repo - ${repoName}" --pure true`;
+    console.log(
+      `\n--- Processing: ${prd.id} - ${prd.name} (${prd.status}) ---`,
+    );
     console.log(`Running: ${cmd}\n`);
 
     try {
