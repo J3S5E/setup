@@ -23,7 +23,7 @@ Get the latest ticket information using `prd-system_getTicket` to pass to the ag
 
 ### Step 2: Select Reviewers
 
-Use the `Hand of the King` agent to recommend 5 or more agents appropriate for reviewing this ticket's implementation. The agents should be selected based on the ticket's domain, tech stack, and the nature of the implementation.
+Use the `Hand of the King` agent to recommend `review` agents appropriate for reviewing this ticket's implementation. The agents should be selected based on the ticket's domain, tech stack, and the nature of the implementation.
 
 ### Step 3: Dispatch Independent Reviews
 
@@ -46,7 +46,7 @@ After collecting independent review reports:
 
 **Deviations:** For each recorded deviation on the ticket, check the agents' verdicts. If agents disagree on a deviation, dispatch an additional agent as a tiebreaker. Call `prd-system_reviewDeviation` for each deviation with the majority verdict. If any deviation is rejected, record it as a review issue — rejected deviations mean the implementer must address them.
 
-If the ticket has deviations but none of the agents evaluated them (they were not dispatched with deviation context), dispatch 2+ agents specifically to review each deviation.
+If the ticket has deviations but none of the agents evaluated them (they were not dispatched with deviation context), dispatch a single agent specifically to review each deviation.
 
 **Suggestions:** For each unique out-of-scope observation reported by agents, first filter: **"Does this observation affect whether the implementation meets acceptance criteria or should it block the ticket from proceeding?"** If yes → it belongs in review comments (which determine pass/fail), not in suggestions. If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="review". These accumulate and are surfaced in the PR description. Do not include out-of-scope observations in review comments.
 
@@ -56,7 +56,7 @@ Collect all agent feedback and identify potential issues. Deduplicate and group 
 
 ### Step 5: Validate Issues
 
-Dispatch 3 or more agents with the full ticket details and the consolidated list of potential issues. Ask them to explore the repo to determine which issues are genuinely valid and require changes.
+Dispatch `validation` agents with the full ticket details and the consolidated list of potential issues. Ask them to explore the repo to determine which issues are genuinely valid and require changes.
 
 If agents disagree on whether an issue is valid, dispatch an additional agent as a tiebreaker. The majority verdict determines whether the issue should be acted on.
 
@@ -74,6 +74,8 @@ If valid issues were found or any deviation was rejected:
 
 Report back that the implementation review is complete and the ticket has been marked accordingly.
 
+Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
+
 ### Escalation
 
 If you reached Step 5 three times and agents are still unable to reach consensus on whether issues are valid, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool. Do not proceed further — report that the ticket has been escalated.
@@ -83,11 +85,11 @@ If you reached Step 5 three times and agents are still unable to reach consensus
 | Step | Action | Key Decision |
 |---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` |
-| 2 | Select reviewers | Hand of the King recommends 5+ agents |
+| 2 | Select reviewers | Hand of the King recommends `review` agents |
 | 3 | Independent review | Agents evaluate implementation + deviations; flag out-of-scope observations |
 | 3b | Record deviations & suggestions | `reviewDeviation` per deviation; `addSuggestion` for out-of-scope findings |
 | 4 | Consolidate | Aggregate and deduplicate findings + rejected deviations |
-| 5 | Validate issues | 3+ agents confirm validity; tiebreaker if split |
+| 5 | Validate issues | `validation` agents confirm validity; tiebreaker if split |
 | 6a | No issues + all deviations accepted → | `reviewImplementation(passed: true)` → "Needs QA" |
 | 6b | Valid issues or rejected deviation → | `reviewImplementation(passed: false, comments)` → "Needs Implementation Update" |
 | Escalate | 3 failed validation cycles | `escalate` → "Needs Human Clarification" |

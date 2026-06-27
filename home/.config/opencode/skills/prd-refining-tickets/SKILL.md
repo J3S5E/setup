@@ -19,7 +19,7 @@ Refining a ticket transforms a raw description into a clear, actionable unit of 
 
 ### Step 1: Align on What the Ticket Means
 
-Get the latest ticket information using `prd-system_getTicket` to pass to the agents for this step. Then dispatch 3 or more agents to independently report their understanding of what this ticket asks for.
+Get the latest ticket information using `prd-system_getTicket` to pass to the agents for this step. Then dispatch `alignment` agents to independently report their understanding of what this ticket asks for.
 
 **Purpose:** Verify everyone interprets the ticket the same way before investing time in deep research.
 
@@ -29,7 +29,7 @@ If agents return with aligned understanding — optionally update the name and/o
 
 ### Step 2: Gather Concrete References
 
-Now that the team agrees on what the ticket means, get the latest ticket information using `prd-system_getTicket` to pass to the agents for this step. Then dispatch 3 or more agents to explore the codebase and collect specific facts that subsequent steps (splitting, estimation, review) will rely on. This avoids each later agent rediscovering the same ground.
+Now that the team agrees on what the ticket means, get the latest ticket information using `prd-system_getTicket` to pass to the agents for this step. Then dispatch `research` agents to explore the codebase and collect specific facts that subsequent steps (splitting, estimation, review) will rely on. This avoids each later agent rediscovering the same ground.
 
 | Purpose | Step 1 | Step 2 |
 |---|---|---|
@@ -55,7 +55,7 @@ This is just information gathering step, you are not asking the agents what file
 
 Get latest ticket information using `prd-system_getTicket` to pass to the agents for this step.
 
-Ask 3 or more agents their opinion on whether this ticket should be split into sub-tickets or not.
+Ask `alignment` agents their opinion on whether this ticket should be split into sub-tickets or not.
 Sub-tickets are not for reviewing/testing the code, gathering information, and updating the description. They are more about breaking down the work into smaller pieces that can be worked on independently.
 Good candidates for sub-tickets are:
 - "Frontend work" and "Backend work" if the ticket involves both complex frontend and backend changes.
@@ -66,7 +66,7 @@ First ask the agents if they think the ticket should be split or not. If they sa
 #### Decided to split the ticket
 
 If they say yes then use `prd-system_getTicket` to get the latest ticket information and pass it to the new agents when you ask them how they will split this ticket.
-Then after you got a consensus you can ask a couple more agents their opinion.
+Then after you got a consensus you can ask `alignment` agents their opinion.
 Only split when you have a majority saying that it is worth splitting, we dont want to split willy-nilly.
 Once you know you are creating subtickets you can create the sub-tickets using the `prd-system_createSubtask` tool and link them to the original ticket.
 
@@ -77,7 +77,7 @@ Get latest ticket information using `prd-system_getTicket` to pass to the agents
 If this ticket has sub-tickets complete the following steps for each sub-ticket, then follow the same steps for the original ticket.
 If this ticket does not have sub-tickets then just follow the steps for the original ticket.
 
-Ask 3 or more agents their opinion on these for the ticket, let them explore the repo and gather information to be able to answer these questions:
+Ask `research` agents their opinion on these for the ticket, let them explore the repo and gather information to be able to answer these questions:
 - Definition of done: What does it mean for this ticket/task to be done? What are the acceptance criteria? This should not include implementation details, but rather the expected behavior and outcomes that would indicate the ticket is complete.
 - Dependencies: Does this ticket depend on any other tickets? Are there any blockers that need to be resolved before work can start on this ticket?
 - Estimation: How long do the agents think this ticket will take to complete? This can be in terms of story points or time estimates.
@@ -87,11 +87,36 @@ Your job is to gather all this information then update the ticket using the `prd
 
 Same as above, important that you ask each agent to report back on all of these points, even if they think some of them are not relevant. You want to make sure you have a comprehensive understanding of the ticket, and you don't want to miss anything that could be important for later steps.
 
+#### AC Quality Gate (between Step 4 and Step 5)
+
+Before moving to review, check each acceptance criterion against these rules:
+
+| Rule | Why | Check |
+|------|-----|-------|
+| **3–5 criteria per ticket** | Too few = underspecified; too many = ticket doing too much | Count them. If < 3 or > 5, split or consolidate before proceeding. |
+| **User-facing behavior, not code** | ACs define *what* users experience, not *how* code is structured | Each AC should describe an outcome a QA engineer can observe without opening the database, reading source code, or running a SQL query. Move column names, file paths, SQL, function signatures, index definitions, FK references, and migration commands to `techNotes`. If the AC references a file path or a column type, it is implementation, not acceptance. |
+| **Given/When/Then format recommended** | Forces precision about context, action, and expected result | Rewrite vague ACs like "User can add comments" → "Given a tracksheet cell, when the user clicks the comment icon, then a popover appears with a comment composer." |
+| **QA can test without PM clarification** | If QA has to guess what "done" means, the AC is not clear | Read each AC and ask: "Could I write a test from this alone? Would a QA engineer need to inspect DB columns, read source code, or check file paths to verify this AC? If yes, move those details to techNotes."
+| **One outcome per AC** | ACs that combine multiple behaviors ("add threading + update relations + generate migration") can not be tested or verified independently | Split compound ACs into one testable outcome per criterion. If they genuinely can not be split, the ticket is too broad. |
+
+Do **not** proceed to Step 5 until every AC passes all four checks above. Re-run the gate even if the prd-system_refineTicket tool accepted the ACs — that tool validates count and format syntax, not AC quality. If any AC fails, fix it before dispatching review agents.
+
+**Example: Bad vs Good ACs**
+
+| Bad (implementation detail) | Good (user-facing outcome) |
+|-----------------------------|---------------------------|
+| Add `parentId` (nullable text(36), self-ref FK) and `updatedAt` column to `cell_comment` table | Users can reply to existing comments on a tracksheet cell |
+| Create `reconciliation_comment` table with `reconciliationId`, `userId`, `content`, `parentId` | Users can add threaded comments on reconciliation records |
+| Update `cellCommentsRelations` to include self-ref `parent: one(cellComments)` with `relationName` | Existing cell comments still load after the threading update |
+| Generate Drizzle migration via `drizzle-kit generate` | N/A — this is an implementation step, put it in techNotes |
+
+If the `prd-system_refineTicket` tool rejects the ACs (count or content validation), fix the issues the error message reports and try again.
+
 ### Step 5: Get reviews for the ticket
 
 Get latest ticket information using `prd-system_getTicket` to pass to the agents for this step.
 
-Ask 3 or more agents to review the ticket. Present only the current ticket state — description, acceptance criteria, dependencies, estimation, tech notes, and subtask definitions. Do NOT include any previous feedback items, review comments, or prior cycle data. Agents must evaluate the ticket as-is, fresh.
+Ask `validation` agents to review the ticket. Present only the current ticket state — description, acceptance criteria, dependencies, estimation, tech notes, and subtask definitions. Do NOT include any previous feedback items, review comments, or prior cycle data. Agents must evaluate the ticket as-is, fresh.
 They should explore the repo and gather information to be able to answer these questions:
 - Is the ticket description clear and concise?
 - Are the sub-tickets (if they exist) well defined and appropriately linked to the original ticket?
@@ -110,7 +135,7 @@ Before dispatching any agents to validate feedback, you MUST have all of the fol
 - [ ] Dependencies, estimation, and tech notes
 - [ ] Feedback items with full context
 
-Then **validate the feedback**: use the Hand of the King agent to recommend appropriate agents, then dispatch 3 or more of them with all of the context gathered above. Use this **exact prompt structure** (fill in all placeholders):
+Then **validate the feedback**: use the Hand of the King agent to recommend appropriate agents, then dispatch `validation` of them with all of the context gathered above. Use this **exact prompt structure** (fill in all placeholders):
 
 ```
 TICKET: <ticket name>
@@ -147,7 +172,7 @@ Do not proceed to Step 6 instead report back that you cannot proceed yet as the 
 
 ### Step 6: Finalize the ticket
 
-Once all the above steps are complete and the ticket has been reviewed, you can mark the ticket as "Needs Plan" using the `prd-system_finish-refinement` tool.
+Once all the above steps are complete and the ticket has been reviewed, you can mark the ticket as "Needs Plan" using the `prd-system_finalizeRefinement` tool.
 Once the ticket is marked as "Needs Plan", it is ready for the next stage in the PRD system where it will be picked up by a planner to create a plan for implementation.
 You can then report back that your work is done and the ticket is ready for planning.
 
@@ -166,7 +191,9 @@ Do not process the ticket any further, only when asked to process the ticket aga
 ## Common Mistakes
 
 - **Splitting too eagerly.** Not every ticket needs sub-tickets. Only split when the work naturally divides into independently actionable pieces.
-- **Including implementation details.** The ticket should describe *what* needs to be done and *why*, not *how*. Keep implementation notes in the tech notes field, not the description.
+- **Including implementation details.** The ticket should describe *what* needs to be done and *why*, not *how*. Keep implementation notes in the tech notes field, not the description. The `prd-system_refineTicket` tool now rejects ACs containing file paths, SQL, function signatures, or import statements — move those to techNotes before calling it.
+- **Too many or too few acceptance criteria.** The system enforces 3–5 ACs per ticket. If your refinement produces fewer, add edge cases. If more, split the ticket or consolidate criteria.
+- **Skipping the AC Quality Gate.** Run the 4 checks (count, behavior, format, testability) before calling Step 5 review. It saves review cycles.
 - **Skipping Step 1 alignment.** If agents interpret the ticket differently and you proceed anyway, later steps will produce conflicting outputs. Always resolve ambiguity first.
 - **Re-exploring unnecessarily in every step.** Collect references once in Step 2 and reuse them. Dispatching fresh exploratory agents in Steps 3-5 without sharing context wastes time and tokens. Agents should still be encouraged to explore for new information, but they should build on the shared knowledge base rather than starting from scratch.
 - **Skipping ticket context when dispatching agents.** Every agent dispatch in every step must include the ticket name, description, acceptance criteria, dependencies, and subtask details. Agents cannot evaluate, research, or plan without knowing the ticket's requirements. Steps 1, 2, and the Step 3 sub-dispatch are common offenders — always call `prd-system_getTicket` first. Use the template in Step 5's Handling feedback section as a model for all dispatches.

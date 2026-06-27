@@ -105,7 +105,7 @@ git commit -m "feat: add specific feature"
 
 ## Remember
 - Exact file paths always
-- Complete code in plan (not "add validation")
+- Complete code in plan for non-trivial logic only. For straightforward CRUD operations or changes the ACs/schema already specify, a step-level description suffices.
 - Exact commands with expected output
 - Reference relevant skills with @ syntax
 - DRY, YAGNI, TDD, frequent commits

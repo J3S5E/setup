@@ -19,11 +19,11 @@ Updating a plan addresses validated issues found during plan review. The ticket 
 
 ### Step 1: Get Ticket Details
 
-Get the latest ticket information using `prd-system_getTicket`. Pay close attention to the `planIssues` field — these are the validated issues that the plan update must address. Also review the current plan, acceptance criteria, tech notes, and dependencies.
+Get the latest ticket information using `prd-system_getTicket`. Pay close attention to the `planIssues` field — these are the validated issues that the plan update must address. If the ticket arrived here via reapproach, also review `rejectionNotes` — these describe what went wrong with the previous implementation and should inform the revised approach. Also review the current plan, acceptance criteria, tech notes, and dependencies.
 
 ### Step 2: Understand the Issues
 
-Review each issue in `planIssues` against the stored plan to determine what needs to change. Use the `Hand of the King` agent to recommend 2 or more agents appropriate for understanding these plan issues, then dispatch them with the full ticket details and ask them to:
+Review each issue in `planIssues` against the stored plan to determine what needs to change. Use the `Hand of the King` agent to recommend an agent appropriate for understanding these plan issues, then dispatch them with the full ticket details and ask them to:
 - Confirm they understand each issue
 - Identify which parts of the plan need to change
 - Flag any issues that seem unclear or redundant
@@ -38,7 +38,7 @@ If issues are unclear or contradictory, mark the ticket using `prd-system_escala
 Get the latest ticket information using `prd-system_getTicket` to pass to the agents for this step.
 If all issues were marked as invalid in the previous step we need to update the plan with more information so it passes review
 
-Use the `Hand of the King` agent to recommend 2 or more agents appropriate for creating plan updates, then dispatch them to independently propose plan updates. Provide them with:
+Use the `Hand of the King` agent to recommend agents appropriate for creating plan updates. Use the Scrum Master's judgment on how many to dispatch — default to 1 agent, increase for complex changes. Provide them with:
 - The full ticket details (description, acceptance criteria, current plan, planIssues, tech notes, dependencies)
 - The findings from Step 2
 
@@ -56,7 +56,7 @@ If the ticket has subtasks, check each subtask's plan — if any need updating t
 
 ### Step 5: Verify the Fix
 
-Get the latest ticket information using `prd-system_getTicket`. Then use the `Hand of the King` agent to recommend 2 or more agents appropriate for verifying plan fixes, then dispatch them with:
+Get the latest ticket information using `prd-system_getTicket`. Then use the `Hand of the King` agent to recommend `validation` agents appropriate for verifying plan fixes, then dispatch them with:
 - The full ticket details (including the updated plan)
 - The original `planIssues` list
 
@@ -77,15 +77,17 @@ Once all issues are verified as resolved, finalize the ticket using `prd-system_
 
 Report back that the plan has been updated and the ticket is ready for re-review.
 
+Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
+
 ## Quick Reference
 
 | Step | Action | Key Decision |
 |---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` — focus on `planIssues` |
-| 2 | Understand the issues | Hand of the King recommends 2+ agents; confirm scope of changes |
-| 3 | Fix the plan | Hand of the King recommends 2+ agents; converge on updated plan |
+| 2 | Understand the issues | Single agent confirms scope of changes |
+| 3 | Fix the plan | SM discretion (default 1 agent, increase for complex changes) |
 | 4 | Save updated plan | `savePlan` on ticket + each subtask |
-| 5 | Verify the fix | Hand of the King recommends 2+ agents; confirm all issues resolved |
+| 5 | Verify the fix | Dispatch `validation` agents; confirm all issues resolved |
 | 6 | Finalize | `finalizePlanning` → "Ready Plan Review" |
 | Escalate | 3 failed cycles | `escalate` → "Needs Human Plan creation" / "Needs Human Plan finalization" |
 

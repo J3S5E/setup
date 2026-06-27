@@ -23,7 +23,7 @@ Get the latest ticket information using `prd-system_getTicket`.
 
 ### Step 2: Final Validation
 
-Dispatch 2 or more agents with the full ticket details to perform a final check:
+Dispatch `validation` agents with the full ticket details to perform a final check:
 
 - Does the ticket have a completed implementation?
 - Was the implementation reviewed and passed?
@@ -47,12 +47,14 @@ If there are outstanding issues:
 
 Report back that the ticket has been finalized and is now marked as Done.
 
+Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
+
 ## Quick Reference
 
 | Step | Action | Key Decision |
-|---|---|---|
+|---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` |
-| 2 | Final validation | 2+ agents verify everything is complete |
+| 2 | Final validation | `validation` agents verify everything is complete |
 | 3a | All good → | `finalizeTicket` → "Done" |
 | 3b | Issues found → | Report; escalate if critical |
 | 4 | Report | Confirm ticket is Done |

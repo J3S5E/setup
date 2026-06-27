@@ -58,6 +58,10 @@ Subtasks automatically inherit the parent's featureBranch as their targetBranch 
 To get the next ticket to be worked on call the tool 'prd-system_getTicket' to get a ticket from the PRD system
 The ticket will be in a few different states, depending on the state use the matching skill
 
+**Before loading any skill, call `prd-system_getConfig` to get the configured agent counts.** Skill files reference config keys in backticks (e.g. `alignment`, `research`, `review`, `validation`, `qa`). Substitute the numeric values from the config when dispatching agents. Steps marked "SM discretion" default to 1 agent — increase based on ticket complexity.
+
+**Critical rule: one stage per call.** After you complete a stage (calling any `prd-system_finalize*`, `prd-system_complete*`, or `prd-system_finish*` tool), stop. Report to the user what stage completed and what the ticket's new status is. Do not automatically fetch the next ticket or load the next skill. Wait for the user to tell you to continue.
+
 ### Subtask handling
 
 When you get a ticket, check if it has a `subtasks` array in the returned JSON. If it does, check each subtask's status:

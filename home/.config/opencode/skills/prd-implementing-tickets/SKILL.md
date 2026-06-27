@@ -1,6 +1,6 @@
 ---
 name: prd-implementing-tickets
-description: Use when a ticket is marked as "Needs Implementing" in the PRD system — dispatches agents to implement the ticket against acceptance criteria.
+description: Use when a ticket is marked as "Needs Implementing" or "Needs Implementation Update" in the PRD system (not when marked as "Needs Subtickets Processed") — dispatches agents to implement the ticket against acceptance criteria.
 user-invocable: false
 ---
 
@@ -16,6 +16,7 @@ Subtasks are implemented first — each in its own feature branch — then merge
 
 - You are the scrummaster or implementer
 - The ticket you have has the status "Needs Implementing" or "Needs Implementation Update"
+- Note: tickets with status "Needs Subtickets Processed" are handled by the `prd-processing-subtickets` skill instead — do not process them here
 
 ## Steps to follow when implementing tickets:
 
@@ -34,7 +35,7 @@ When implementing a parent ticket that has subtasks, the subtasks in non-termina
 4. The subtask's PR merges into its `targetBranch` (the parent's `featureBranch`), not into `main`
 5. Once a subtask is finalized to "Done", its code is part of the parent's `featureBranch`
 
-The scrum master will drive each subtask through its full lifecycle (review, QA, PR, finalize). Your job is to implement each subtask and call `completeImplementation` — the scrum master handles the rest.
+The scrum master will progress each subtask one stage at a time through its full lifecycle (review, QA, PR, finalize). Your job is to implement each subtask and call `completeImplementation` — the scrum master handles the rest.
 
 After all subtasks are Done, proceed to implement the parent ticket below.
 
@@ -46,7 +47,7 @@ Check the ticket's `featureBranch` and `worktreeDir` fields — these tell you w
 
 If the ticket has `worktreeDir`, the preferred layout is `.worktrees\%BRANCH%` (with `/` replaced by `_` to avoid nesting). Check whether the project root contains an `init_worktree.sh` or `init-worktree.sh` script — if one exists, read it and follow its setup process for the worktree.
 
-Dispatch 2 or more agents to independently report their understanding of:
+Dispatch `alignment` agents to independently report their understanding of:
 - What needs to be built based on the acceptance criteria
 - What the implementation plan says (ordered steps, files to modify/create)
 - What tech notes or risks were identified during planning
@@ -61,7 +62,7 @@ Get the latest ticket information using `prd-system_getTicket` to pass to the ag
 
 The implementation should be done in the ticket's `featureBranch`. If this ticket had subtasks, its `featureBranch` already contains all subtask work merged in — build on top of it.
 
-Use the `Hand of the King` agent to recommend 3 or more agents appropriate for implementing this ticket, then dispatch them to independently implement the ticket according to the plan. Each agent should:
+Use the `Hand of the King` agent to recommend agents appropriate for implementing this ticket. Use the Scrum Master's judgment on how many to dispatch — default to 1 agent for simple changes, increase for complex tickets. Each agent should:
 - Follow the ordered steps in the plan
 - Create or modify files as specified
 - Write tests as described in the plan's testing approach
@@ -85,7 +86,7 @@ After collecting agent reports and finalizing the implementation, process observ
 
 Get the latest ticket information using `prd-system_getTicket`.
 
-Use the `Hand of the King` agent to recommend 2 or more agents appropriate for verifying this implementation, then dispatch them with the chosen implementation, the full ticket details, and any recorded deviations. Ask them to verify:
+Use the `Hand of the King` agent to recommend `validation` agents appropriate for verifying this implementation, then dispatch them with the chosen implementation, the full ticket details, and any recorded deviations. Ask them to verify:
 - Does the implementation meet all acceptance criteria?
 - Do all tests pass?
 - Are there any edge cases not handled?
@@ -102,14 +103,16 @@ The ticket's `featureBranch` will later be merged into its `targetBranch` (e.g.,
 
 Report back that the implementation is complete and the ticket is ready for review.
 
+Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
+
 ## Quick Reference
 
 | Step | Action | Key Decision |
 |---|---|---|---|
 | Subtasks first | Implement each subtask in its own branch, merge into parent's featureBranch | All subtasks merged → proceed to parent |
-| 1 | Review ticket and plan | Check featureBranch/worktreeDir; align understanding |
-| 2 | Implement the ticket | Hand of the King recommends 3+ agents; produce implementations |
-| 3 | Verify against acceptance criteria | Hand of the King recommends 2+ agents; verify all pass |
+| 1 | Review ticket and plan | Dispatch `alignment` agents; check featureBranch/worktreeDir |
+| 2 | Implement the ticket | SM discretion (default 1 agent, increase for complex tickets) |
+| 3 | Verify against acceptance criteria | Dispatch `validation` agents; verify all pass |
 | 4 | Mark complete | `completeImplementation` → "Needs Review" |
 
 ## Common Mistakes

@@ -23,7 +23,7 @@ Get the latest ticket information using `prd-system_getTicket`. Pay close attent
 
 ### Step 2: Understand the Issues
 
-Use the `Hand of the King` agent to recommend 2 or more agents appropriate for understanding these review comments or QA notes, then dispatch them with the full ticket details and ask them to:
+Use the `Hand of the King` agent to recommend an agent appropriate for understanding these review comments or QA notes, then dispatch them with the full ticket details and ask them to:
 - Confirm they understand each review comment or QA note
 - Identify which files or code areas need to change
 - Flag any issues that seem unclear, redundant, or already addressed
@@ -36,7 +36,7 @@ If issues are unclear or contradictory, mark the ticket using `prd-system_escala
 
 Get the latest ticket information using `prd-system_getTicket` to pass to the agents for this step.
 
-Use the `Hand of the King` agent to recommend 2 or more agents appropriate for fixing these implementation issues, then dispatch them to independently propose fixes. Provide them with:
+Use the `Hand of the King` agent to recommend agents appropriate for fixing these implementation issues. Use the Scrum Master's judgment on how many to dispatch — default to 1 agent, increase for complex fixes. Provide them with:
 - The full ticket details (description, acceptance criteria, plan, current implementation)
 - The review comments or QA notes from Step 1
 - The findings from Step 2
@@ -47,7 +47,7 @@ If agents propose different approaches, dispatch an additional agent as a tiebre
 
 ### Step 4: Verify the Fixes
 
-Get the latest ticket information using `prd-system_getTicket`. Then use the `Hand of the King` agent to recommend 2 or more agents appropriate for verifying implementation fixes, then dispatch them with:
+Get the latest ticket information using `prd-system_getTicket`. Then use the `Hand of the King` agent to recommend `validation` agents appropriate for verifying implementation fixes, then dispatch them with:
 - The full ticket details (including the updated implementation)
 - The original review comments or QA notes
 
@@ -68,14 +68,16 @@ Once all issues are verified as resolved, call `prd-system_completeImplementatio
 
 Report back that the implementation has been updated and the ticket is ready for re-review.
 
+Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
+
 ## Quick Reference
 
 | Step | Action | Key Decision |
 |---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` — focus on reviewComments/qaNotes |
-| 2 | Understand the issues | Hand of the King recommends 2+ agents; confirm scope of changes |
-| 3 | Fix the implementation | Hand of the King recommends 2+ agents; converge on fixes |
-| 4 | Verify the fixes | Hand of the King recommends 2+ agents; confirm all issues resolved |
+| 2 | Understand the issues | Single agent confirms scope of changes |
+| 3 | Fix the implementation | SM discretion (default 1 agent, increase for complex fixes) |
+| 4 | Verify the fixes | Dispatch `validation` agents; confirm all issues resolved |
 | 5 | Mark complete | `completeImplementation` → "Needs Review" |
 | Escalate | 3 failed cycles | `escalate` → "Needs Human Clarification" |
 

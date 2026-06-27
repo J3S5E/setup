@@ -25,7 +25,7 @@ Get the latest ticket information using `prd-system_getTicket` to pass to the ag
 
 Get the latest ticket information using `prd-system_getTicket`. The ticket will contain `suggestions` and `deviations` arrays — use these to inform the PR content.
 
-Dispatch 2 or more agents with the full ticket details (description, acceptance criteria, plan, implementation, suggestions, and deviations) and ask them to explore the repo and prepare:
+Dispatch a single agent with the full ticket details (description, acceptance criteria, plan, implementation, suggestions, and deviations) and ask them to explore the repo and prepare:
 
 - What branch was the implementation done on? (check from ticket or git history)
 - What is the appropriate target branch for the PR?
@@ -96,12 +96,14 @@ If the PR was not merged (e.g., conflicts, rejected), the ticket transitions bac
 
 Report back that the PR stage is complete and the ticket has been updated accordingly.
 
+Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
+
 ## Quick Reference
 
 | Step | Action | Key Decision |
-|---|---|---|
+|---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` |
-| 2 | Prepare the PR | 2+ agents determine branch, target, description |
+| 2 | Prepare the PR | Single agent determines branch, target, description |
 | 3 | Create the PR | Use `gh pr create` or report for manual creation |
 | 4a | PR merged → | `completePR(prUrl, merged: true)` → "Needs Finalizing" |
 | 4b | PR not merged → | `completePR(prUrl, merged: false)` → "Needs Implementation Update" |

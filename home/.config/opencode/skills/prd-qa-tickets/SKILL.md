@@ -23,7 +23,7 @@ Get the latest ticket information using `prd-system_getTicket` to pass to the ag
 
 ### Step 2: Select QA Agents
 
-Use the `Hand of the King` agent to recommend 3 or more agents appropriate for QA on this ticket. QA agents should be selected based on the ticket's domain, tech stack, and testing requirements.
+Use the `Hand of the King` agent to recommend `qa` agents appropriate for QA on this ticket. QA agents should be selected based on the ticket's domain, tech stack, and testing requirements.
 
 ### Step 3: Dispatch Independent QA
 
@@ -66,6 +66,8 @@ If QA failed:
 
 Report back that QA is complete and the ticket has been marked accordingly.
 
+Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
+
 ### Escalation
 
 If QA agents disagree on whether a critical issue exists, dispatch an additional agent as a tiebreaker. If consensus cannot be reached after 3 attempts, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool.
@@ -75,7 +77,7 @@ If QA agents disagree on whether a critical issue exists, dispatch an additional
 | Step | Action | Key Decision |
 |---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` |
-| 2 | Select QA agents | Hand of the King recommends 3+ agents |
+| 2 | Select QA agents | Hand of the King recommends `qa` agents |
 | 3 | Independent QA | Agents test against acceptance criteria + validate deviations |
 | 3b | Record deviations & suggestions | `qaDeviation` per deviation; `addSuggestion` for out-of-scope findings |
 | 4 | Consolidate results | All pass + no flagged deviations → proceed; Any fail → fail |
