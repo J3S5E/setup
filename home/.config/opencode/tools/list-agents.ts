@@ -2,10 +2,7 @@ import { tool } from "@opencode-ai/plugin";
 import * as fs from "fs";
 import * as path from "path";
 
-interface Agent {
-  name: string;
-  description: string;
-}
+type Agent = Record<string, string>;
 
 function getAgentsFolder(): string {
   return "C:\\GIT\\setup\\home\\.config\\opencode\\agents";
@@ -49,10 +46,7 @@ function listAgents(): Agent[] {
       frontmatter.name &&
       frontmatter.description
     ) {
-      agents.push({
-        name: frontmatter.name,
-        description: frontmatter.description,
-      });
+      agents.push(frontmatter);
     }
   }
 
