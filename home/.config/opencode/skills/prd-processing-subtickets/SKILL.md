@@ -38,6 +38,7 @@ For each pending subtask, advance it one stage at a time. Do not skip stages. Fo
 | "Ready Plan Review" | `prd-reviewing-plan` — runs plan review on the subtask. If it hits **"Needs Plan Updating"**, handle that first (via `prd-updating-plans`), then re-run plan review. Once the subtask reaches **"Needs Implementing"**, proceed. |
 | "Needs Implementing" / "Needs Implementation Update" | `prd-implementing-tickets` — implements the subtask |
 | "Needs Review" | `prd-reviewing-implementation` — reviews the subtask implementation |
+| "Needs Security Review" | `prd-security-review` — runs security analysis on the subtask |
 | "Needs QA" | `prd-qa-tickets` — runs QA on the subtask |
 | "Needs PR" | `prd-pr-tickets` — creates and completes the subtask's PR |
 | "Needs Finalizing" | `prd-finalizing-tickets` — finalizes the subtask, marking it Needs Cleanup |
@@ -48,6 +49,7 @@ For each pending subtask, advance it one stage at a time. Do not skip stages. Fo
 **Important:** When calling lifecycle tools for a subtask, always pass both `id` (parent ticket ID) and `subtaskId` (subtask ID):
 - `prd-system_completeImplementation(id=parentId, gitRepo, subtaskId=subtaskId, branch=subtaskFeatureBranch)`
 - `prd-system_reviewImplementation(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
+- `prd-system_completeSecurityReview(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
 - `prd-system_completeQA(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
 - `prd-system_completePR(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
 - `prd-system_finalizeTicket(id=parentId, gitRepo, subtaskId=subtaskId)`

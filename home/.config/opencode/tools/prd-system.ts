@@ -5,7 +5,7 @@ import * as path from "path";
 type Suggestion = {
   suggestionId: string;
   message: string;
-  source: "planning" | "implementation" | "review" | "qa";
+  source: "planning" | "implementation" | "review" | "qa" | "security";
   createdAt: string;
   resolvedAt?: string;
 };
@@ -48,6 +48,7 @@ type Ticket = {
   worktreeDir: string;
   branch?: string;
   reviewComments?: string[];
+  securityNotes?: string[];
   qaNotes?: string[];
   prUrl?: string;
   prMerged?: boolean;
@@ -222,6 +223,8 @@ export const escalate = tool({
       prdData.status = "Needs Human Implementation";
     } else if (status === "Needs Review") {
       prdData.status = "Needs Human Review";
+    } else if (status === "Needs Security Review") {
+      prdData.status = "Needs Human Security Review";
     } else if (status === "Needs QA") {
       prdData.status = "Needs Human QA";
     } else if (status === "Needs PR") {
@@ -912,6 +915,7 @@ export const completeImplementation = tool({
       prd.branch = branch;
     }
     ticket.reviewComments = [];
+    ticket.securityNotes = [];
     ticket.qaNotes = [];
     ticket.status = "Needs Review";
     updatePrd(prd, gitRepo);
@@ -923,7 +927,7 @@ export const completeImplementation = tool({
 
 export const reviewImplementation = tool({
   description:
-    "Reviews an implemented ticket. If passed, transitions to Needs QA. If failed, transitions to Needs Implementation Update with comments.",
+    "Reviews an implemented ticket. If passed, transitions to Needs Security Review. If failed, transitions to Needs Implementation Update with comments.",
   args: {
     id: tool.schema.string().describe("Id of the ticket"),
     gitRepo: tool.schema.string().describe("The Git repository name"),
@@ -961,10 +965,10 @@ export const reviewImplementation = tool({
     }
 
     ticket.reviewComments = reviewComments;
-    ticket.status = passed ? "Needs QA" : "Needs Implementation Update";
+    ticket.status = passed ? "Needs Security Review" : "Needs Implementation Update";
     updatePrd(prd, gitRepo);
 
-    const outcome = passed ? "Needs QA" : "Needs Implementation Update";
+    const outcome = passed ? "Needs Security Review" : "Needs Implementation Update";
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
     return `${label} reviewed and marked as ${outcome}.`;
   },
@@ -1014,6 +1018,53 @@ export const completeQA = tool({
     const outcome = passed ? "Needs PR" : "Needs Implementation Update";
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
     return `${label} QA completed and marked as ${outcome}.`;
+  },
+});
+
+export const completeSecurityReview = tool({
+  description:
+    "Completes the security review for a ticket. If passed, transitions to Needs QA. If failed, transitions to Needs Implementation Update with security notes.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to complete security review for"),
+    passed: tool.schema.boolean().describe("Whether the security review passed"),
+    securityNotes: tool.schema
+      .array(tool.schema.string())
+      .describe("Security review notes — required at least 1 if not passed"),
+  },
+  async execute({ id, gitRepo, passed, securityNotes, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    if (ticket.status !== "Needs Security Review") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows security review. Current status: ${ticket.status}.`;
+    }
+
+    if (!passed && (!securityNotes || securityNotes.length === 0)) {
+      return "Security notes are required when the security review does not pass.";
+    }
+
+    ticket.securityNotes = securityNotes;
+    ticket.status = passed ? "Needs QA" : "Needs Implementation Update";
+    updatePrd(prd, gitRepo);
+
+    const outcome = passed ? "Needs QA" : "Needs Implementation Update";
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} security review completed and marked as ${outcome}.`;
   },
 });
 
@@ -1395,8 +1446,8 @@ export const addSuggestion = tool({
     if (!prd) {
       return `Ticket with ID ${id} not found.`;
     }
-    if (!["planning", "implementation", "review", "qa"].includes(source)) {
-      return `Invalid source: ${source}. Must be one of: planning, implementation, review, qa.`;
+    if (!["planning", "implementation", "review", "qa", "security"].includes(source)) {
+      return `Invalid source: ${source}. Must be one of: planning, implementation, review, qa, security.`;
     }
     if (!prd.suggestions) {
       prd.suggestions = [];

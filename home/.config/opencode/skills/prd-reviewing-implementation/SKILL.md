@@ -65,7 +65,7 @@ Only issues confirmed as valid by the majority should be included in the final r
 ### Step 6: Act on Feedback
 
 If no valid issues were found and no deviations were rejected:
-- Call `prd-system_reviewImplementation` with `passed: true` to mark the ticket as "Needs QA"
+- Call `prd-system_reviewImplementation` with `passed: true` to mark the ticket as "Needs Security Review"
 
 If valid issues were found or any deviation was rejected:
 - Call `prd-system_reviewImplementation` with `passed: false` and the consolidated review comments (including rejected deviations) to mark the ticket as "Needs Implementation Update"
@@ -90,7 +90,7 @@ If you reached Step 5 three times and agents are still unable to reach consensus
 | 3b | Record deviations & suggestions | `reviewDeviation` per deviation; `addSuggestion` for out-of-scope findings |
 | 4 | Consolidate | Aggregate and deduplicate findings + rejected deviations |
 | 5 | Validate issues | `validation` agents confirm validity; tiebreaker if split |
-| 6a | No issues + all deviations accepted → | `reviewImplementation(passed: true)` → "Needs QA" |
+| 6a | No issues + all deviations accepted → | `reviewImplementation(passed: true)` → "Needs Security Review" |
 | 6b | Valid issues or rejected deviation → | `reviewImplementation(passed: false, comments)` → "Needs Implementation Update" |
 | Escalate | 3 failed validation cycles | `escalate` → "Needs Human Clarification" |
 
