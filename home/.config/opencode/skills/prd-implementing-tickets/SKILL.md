@@ -30,7 +30,9 @@ When implementing a parent ticket that has subtasks, the subtasks in non-termina
    - `prd-system_completeImplementation(id=parentId, gitRepo, subtaskId=subtaskId, branch=subtaskFeatureBranch)`
    - `prd-system_reviewImplementation(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
    - `prd-system_completeQA(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
-   - `prd-system_completePR(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
+   - `prd-system_submitPR(id=parentId, gitRepo, subtaskId=subtaskId, ...)` (if subtasksNeedPrs=true)
+   - `prd-system_completeGitMerge(id=parentId, gitRepo, subtaskId=subtaskId)` (if subtasksNeedPrs=false)
+   - `prd-system_completePR(id=parentId, gitRepo, subtaskId=subtaskId)` (after merge confirmed)
    - `prd-system_finalizeTicket(id=parentId, gitRepo, subtaskId=subtaskId)`
 4. The subtask's PR merges into its `targetBranch` (the parent's `featureBranch`), not into `main`
 5. Once a subtask is finalized to "Done", its code is part of the parent's `featureBranch`

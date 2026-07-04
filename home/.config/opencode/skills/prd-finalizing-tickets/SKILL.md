@@ -1,6 +1,6 @@
 ---
 name: prd-finalizing-tickets
-description: Use when a ticket is marked as "Needs Finalizing" in the PRD system — performs final validation and marks the ticket as done.
+description: Use when a ticket is marked as "Needs Finalizing" in the PRD system — performs final validation and marks the ticket as Needs Cleanup.
 user-invocable: false
 ---
 
@@ -28,7 +28,7 @@ Dispatch `validation` agents with the full ticket details to perform a final che
 - Does the ticket have a completed implementation?
 - Was the implementation reviewed and passed?
 - Was QA completed and passed?
-- Was the PR created and merged?
+- Was the PR created and merged? (For subtasks with no PR, verify the git merge was completed instead)
 - Are all acceptance criteria met?
 - Is there any unfinished work remaining?
 

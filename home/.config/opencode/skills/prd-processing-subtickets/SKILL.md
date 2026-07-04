@@ -34,13 +34,16 @@ For each pending subtask, advance it one stage at a time. Do not skip stages. Fo
 | Subtask Status | Skill to Use |
 |---|---|
 | "Needs Refinement" | `prd-refining-tickets` |
-| "Needs Plan" / "Needs Plan Updating" | `prd-planning-tickets` |
+| "Needs Plan" | `prd-planning-tickets` |
+| "Needs Plan Updating" | `prd-updating-plans` |
 | "Ready Plan Review" | `prd-reviewing-plan` — runs plan review on the subtask. If it hits **"Needs Plan Updating"**, handle that first (via `prd-updating-plans`), then re-run plan review. Once the subtask reaches **"Needs Implementing"**, proceed. |
 | "Needs Implementing" / "Needs Implementation Update" | `prd-implementing-tickets` — implements the subtask |
 | "Needs Review" | `prd-reviewing-implementation` — reviews the subtask implementation |
 | "Needs Security Review" | `prd-security-review` — runs security analysis on the subtask |
 | "Needs QA" | `prd-qa-tickets` — runs QA on the subtask |
-| "Needs PR" | `prd-pr-tickets` — creates and completes the subtask's PR |
+| "Needs PR" | `prd-pr-creation` — creates the subtask's PR |
+| "Needs PR Maintenance" | `prd-pr-maintenance` — validates CI/comments |
+| "Needs Git Merge" | `prd-git-merge-tickets` — merges subtask branch into target directly |
 | "Needs Finalizing" | `prd-finalizing-tickets` — finalizes the subtask, marking it Needs Cleanup |
 | "Needs Cleanup" | `prd-cleanup-tickets` — cleans up worktree and branch, marks Done |
 | "Blocked" | `prd-blocked-tickets` — check if blocker resolved |
@@ -51,7 +54,9 @@ For each pending subtask, advance it one stage at a time. Do not skip stages. Fo
 - `prd-system_reviewImplementation(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
 - `prd-system_completeSecurityReview(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
 - `prd-system_completeQA(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
-- `prd-system_completePR(id=parentId, gitRepo, subtaskId=subtaskId, ...)`
+- `prd-system_submitPR(id=parentId, gitRepo, subtaskId=subtaskId, prUrl=...)` (if PR path)
+- `prd-system_completeGitMerge(id=parentId, gitRepo, subtaskId=subtaskId)` (if direct merge path)
+- `prd-system_completePR(id=parentId, gitRepo, subtaskId=subtaskId)` (after merge confirmed)
 - `prd-system_finalizeTicket(id=parentId, gitRepo, subtaskId=subtaskId)`
 
 The subtask's PR merges into its `targetBranch` (the parent's `featureBranch`), not into `main`.

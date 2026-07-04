@@ -26,6 +26,7 @@ type Prd = Ticket & {
   jiraTicket?: string;
   subtasks?: Ticket[];
   planIteration: number;
+  subtasksNeedPrs?: boolean;
 };
 
 type Ticket = {
@@ -51,8 +52,10 @@ type Ticket = {
   securityNotes?: string[];
   qaNotes?: string[];
   prUrl?: string;
-  prMerged?: boolean;
+  merged?: boolean;
   rejectionNotes?: string;
+  prCiResults?: string[];
+  prCommentsValidated?: boolean;
   blockedReason?: string;
   previousStatus?: string;
 };
@@ -229,6 +232,12 @@ export const escalate = tool({
       prdData.status = "Needs Human QA";
     } else if (status === "Needs PR") {
       prdData.status = "Needs Human PR";
+    } else if (status === "Needs PR Maintenance") {
+      prdData.status = "Needs Human PR Maintenance";
+    } else if (status === "Awaiting Human Merge") {
+      prdData.status = "Needs Human Merge Clarification";
+    } else if (status === "Needs Git Merge") {
+      prdData.status = "Needs Human Git Merge";
     } else if (status === "Needs Reapproach") {
       prdData.status = "Needs Human Reapproach";
     } else if (status === "Blocked") {
@@ -241,6 +250,203 @@ export const escalate = tool({
 
     updatePrd(prdData, gitRepo);
     return `Ticket with ID ${id} escalated to ${prdData.status}.`;
+  },
+});
+
+export const submitPR = tool({
+  description:
+    "Submits a PR for a ticket and transitions it from Needs PR to Needs PR Maintenance. Resets prCiResults, prCommentsValidated, and rejectionNotes for a clean maintenance cycle. Used by the prd-pr-creation skill after creating the pull request.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask the PR is for"),
+    prUrl: tool.schema
+      .string()
+      .optional()
+      .describe("URL of the pull request — optional if already on the ticket"),
+  },
+  async execute({ id, gitRepo, prUrl, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
+    }
+
+    if (ticket.status !== "Needs PR") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows PR submission. Current status: ${ticket.status}.`;
+    }
+
+    if (!prUrl && !ticket.prUrl) {
+      return "No PR URL provided and no PR URL found on the ticket. Provide a prUrl or ensure the ticket already has one.";
+    }
+
+    if (prUrl) {
+      ticket.prUrl = prUrl;
+    }
+    ticket.prCiResults = undefined;
+    ticket.prCommentsValidated = undefined;
+    ticket.rejectionNotes = undefined;
+    ticket.status = "Needs PR Maintenance";
+
+    updatePrd(prd, gitRepo);
+
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} PR submitted and marked as Needs PR Maintenance.`;
+  },
+});
+
+export const flagPrRework = tool({
+  description:
+    "Flags a ticket in Needs PR Maintenance for rework. Routes to Needs Implementation Update (code changes) or Needs Reapproach (wrong approach).",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to flag for rework"),
+    rejectionType: tool.schema
+      .string()
+      .optional()
+      .describe(
+        "'implementation' (default, code-level fixes) or 'approach' (replanning needed)",
+      ),
+    rejectionNotes: tool.schema
+      .string()
+      .describe("Why the PR needs rework — required"),
+  },
+  async execute({ id, gitRepo, rejectionType, rejectionNotes, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
+    }
+
+    if (ticket.status !== "Needs PR Maintenance") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows flagging rework. Current status: ${ticket.status}.`;
+    }
+
+    if (rejectionType !== undefined && !["implementation", "approach"].includes(rejectionType)) {
+      return `Invalid rejectionType: "${rejectionType}". Must be "implementation" or "approach".`;
+    }
+    const type = rejectionType || "implementation";
+
+    if (!rejectionNotes || rejectionNotes.trim() === "") {
+      return "Rejection notes are required.";
+    }
+
+    ticket.rejectionNotes = rejectionNotes;
+    ticket.status = type === "approach" ? "Needs Reapproach" : "Needs Implementation Update";
+
+    updatePrd(prd, gitRepo);
+
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} flagged for rework and marked as ${ticket.status}.`;
+  },
+});
+
+export const requestHumanMerge = tool({
+  description:
+    "Marks a ticket in Needs PR Maintenance as ready for human merge. Stores CI results, sets prCommentsValidated=true, transitions to Awaiting Human Merge. After the human merges the PR, they use an external tool to return the ticket to Needs PR Maintenance, where the maintenance skill will detect the merge and call completePR.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask requesting merge"),
+    ciResults: tool.schema
+      .array(tool.schema.string())
+      .describe("CI check results (names/statuses to store as evidence)"),
+  },
+  async execute({ id, gitRepo, ciResults, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
+    }
+
+    if (ticket.status !== "Needs PR Maintenance") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows requesting human merge. Current status: ${ticket.status}.`;
+    }
+
+    ticket.prCiResults = ciResults;
+    ticket.prCommentsValidated = true;
+    ticket.status = "Awaiting Human Merge";
+
+    updatePrd(prd, gitRepo);
+
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} PR passed all checks. Awaiting human merge.`;
+  },
+});
+
+export const completeGitMerge = tool({
+  description:
+    "Completes a direct git merge for a subtask only (no PR needed). Requires both id (parent) and subtaskId — this tool only operates on subtasks. Transitions from Needs Git Merge to Needs Finalizing.",
+  args: {
+    id: tool.schema.string().describe("Id of the parent ticket (required — this tool only operates on subtasks)"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .describe("Id of the subtask that was merged (required — this tool only operates on subtasks)"),
+  },
+  async execute({ id, gitRepo, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Parent ticket with ID ${id} not found.`;
+    }
+
+    const terminalStatuses = ["Done", "Cancelled"];
+    if (terminalStatuses.includes(prd.status)) {
+      return `Parent ticket is ${prd.status}. Cannot merge subtask into a completed parent.`;
+    }
+
+    const ticket = prd.subtasks?.find((subtask: any) => subtask.id === subtaskId);
+    if (!ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+
+    if (ticket.status !== "Needs Git Merge") {
+      return `Subtask ${subtaskId} is not in a state that allows completing git merge. Current status: ${ticket.status}.`;
+    }
+
+    ticket.merged = true;
+    ticket.status = "Needs Finalizing";
+
+    updatePrd(prd, gitRepo);
+
+    return `Subtask ${subtaskId} git merge completed and marked as Needs Finalizing.`;
   },
 });
 
@@ -482,6 +688,9 @@ export const assignWorkspace = tool({
     ticket.featureBranch = featureBranch;
     ticket.worktreeDir = worktreeDir;
     if (subtaskId) {
+      if (!prd.featureBranch) {
+        return `Cannot assign workspace for subtask: parent ticket ${id} has no featureBranch yet. Assign parent workspace first.`;
+      }
       ticket.targetBranch = prd.featureBranch;
     }
     updatePrd(prd, gitRepo);
@@ -912,7 +1121,7 @@ export const completeImplementation = tool({
     }
 
     if (branch) {
-      prd.branch = branch;
+      ticket.branch = branch;
     }
     ticket.reviewComments = [];
     ticket.securityNotes = [];
@@ -976,7 +1185,7 @@ export const reviewImplementation = tool({
 
 export const completeQA = tool({
   description:
-    "Completes QA for a ticket. If passed, transitions to Needs PR. If failed, transitions to Needs Implementation Update with QA notes.",
+    "Completes QA for a ticket. If passed, transitions to Needs PR (for parent tickets or subtasks with subtasksNeedPrs=true) or Needs Git Merge (for subtasks with subtasksNeedPrs=false). If failed, transitions to Needs Implementation Update with QA notes.",
   args: {
     id: tool.schema.string().describe("Id of the ticket"),
     gitRepo: tool.schema.string().describe("The Git repository name"),
@@ -1012,10 +1221,18 @@ export const completeQA = tool({
     }
 
     ticket.qaNotes = qaNotes;
-    ticket.status = passed ? "Needs PR" : "Needs Implementation Update";
+    if (passed) {
+      if (subtaskId && !prd.subtasksNeedPrs) {
+        ticket.status = "Needs Git Merge";
+      } else {
+        ticket.status = "Needs PR";
+      }
+    } else {
+      ticket.status = "Needs Implementation Update";
+    }
     updatePrd(prd, gitRepo);
 
-    const outcome = passed ? "Needs PR" : "Needs Implementation Update";
+    const outcome = ticket.status;
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
     return `${label} QA completed and marked as ${outcome}.`;
   },
@@ -1070,7 +1287,7 @@ export const completeSecurityReview = tool({
 
 export const completePR = tool({
   description:
-    "Completes the PR stage. If merged, transitions to Needs Finalizing. If not merged, transitions to Needs Implementation Update (default) or Needs Reapproach (if rejectionType is 'approach').",
+    "Confirms a PR was merged and transitions the ticket from Needs PR Maintenance to Needs Finalizing. Accepts an optional `merged` param (defaults to true) for defense-in-depth — if explicitly passed as false, returns an error guiding the caller to use flagPrRework instead.",
   args: {
     id: tool.schema.string().describe("Id of the ticket"),
     gitRepo: tool.schema.string().describe("The Git repository name"),
@@ -1078,20 +1295,18 @@ export const completePR = tool({
       .string()
       .optional()
       .describe("Id of the subtask the PR is for"),
-    prUrl: tool.schema.string().describe("URL of the pull request"),
-    prMerged: tool.schema.boolean().describe("Whether the PR was merged"),
-    rejectionType: tool.schema
+    prUrl: tool.schema
       .string()
+      .optional()
+      .describe("URL of the pull request — optional if already on the ticket"),
+    merged: tool.schema
+      .boolean()
       .optional()
       .describe(
-        "When not merged: 'implementation' (default) for code-level rework, 'approach' when the implementation approach was wrong and needs replanning",
+        "Whether the PR was merged. Defaults to true. Pass false to reject — use flagPrRework instead.",
       ),
-    rejectionNotes: tool.schema
-      .string()
-      .optional()
-      .describe("Required when not merged. Describes why the PR was rejected and what needs to change."),
   },
-  async execute({ id, gitRepo, prUrl, prMerged, subtaskId, rejectionType, rejectionNotes }) {
+  async execute({ id, gitRepo, prUrl, merged, subtaskId }) {
     const prd = getPrd(id, gitRepo);
     if (!prd) {
       return `Ticket with ID ${id} not found.`;
@@ -1101,43 +1316,30 @@ export const completePR = tool({
       ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
       : prd;
     if (!ticket) {
-      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
     }
 
-    if (ticket.status !== "Needs PR") {
+    if (ticket.status !== "Needs PR Maintenance") {
       const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
       return `${label} is not in a state that allows completing a PR. Current status: ${ticket.status}.`;
     }
 
-    if (!prUrl || prUrl.trim() === "") {
-      return "PR URL is required.";
+    if (merged === false) {
+      return "PR not merged. Use flagPrRework to flag for rework instead of completePR.";
     }
 
-    if (!prMerged && (!rejectionNotes || rejectionNotes.trim() === "")) {
-      return "Rejection notes are required when the PR is not merged.";
+    if (prUrl) {
+      ticket.prUrl = prUrl;
     }
-
-    if (!prMerged && rejectionType && !["implementation", "approach"].includes(rejectionType)) {
-      return `Invalid rejectionType: "${rejectionType}". Must be "implementation" or "approach".`;
-    }
-
-    ticket.prUrl = prUrl;
-    ticket.prMerged = prMerged;
-    ticket.rejectionNotes = prMerged ? undefined : (rejectionNotes || "");
-
-    if (prMerged) {
-      ticket.status = "Needs Finalizing";
-    } else if (rejectionType === "approach") {
-      ticket.status = "Needs Reapproach";
-    } else {
-      ticket.status = "Needs Implementation Update";
-    }
+    ticket.merged = true;
+    ticket.status = "Needs Finalizing";
 
     updatePrd(prd, gitRepo);
 
-    const outcome = ticket.status;
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
-    return `${label} PR completed and marked as ${outcome}.`;
+    return `${label} PR confirmed merged and marked as Needs Finalizing.`;
   },
 });
 
@@ -1185,7 +1387,7 @@ export const finalizeReapproach = tool({
 
 export const finalizeTicket = tool({
   description:
-    "Finalizes a ticket, transitioning it to Done. This is the final stage of the ticket lifecycle.",
+    "Finalizes a ticket, transitioning it to Needs Cleanup (precursor to Done). The ticket will be marked Done after the cleanup stage.",
   args: {
     id: tool.schema.string().describe("Id of the ticket"),
     gitRepo: tool.schema.string().describe("The Git repository name"),

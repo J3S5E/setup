@@ -57,7 +57,7 @@ Collect all QA agent reports. Determine if the implementation passes QA:
 ### Step 5: Act on Results
 
 If QA passed:
-- Call `prd-system_completeQA` with `passed: true` to mark the ticket as "Needs PR"
+- Call `prd-system_completeQA` with `passed: true` — this marks the ticket as **"Needs PR"** (for parent tickets or subtasks with `subtasksNeedPrs=true`) or **"Needs Git Merge"** (for subtasks with `subtasksNeedPrs=false`)
 
 If QA failed:
 - Call `prd-system_completeQA` with `passed: false` and consolidated QA notes (including any flagged deviations) to mark the ticket as "Needs Implementation Update"
@@ -81,7 +81,7 @@ If QA agents disagree on whether a critical issue exists, dispatch an additional
 | 3 | Independent QA | Agents test against acceptance criteria + validate deviations |
 | 3b | Record deviations & suggestions | `qaDeviation` per deviation; `addSuggestion` for out-of-scope findings |
 | 4 | Consolidate results | All pass + no flagged deviations → proceed; Any fail → fail |
-| 5a | Pass → | `completeQA(passed: true)` → "Needs PR" |
+| 5a | Pass → | `completeQA(passed: true)` → "Needs PR" (parent/subtasksNeedPrs=true) or "Needs Git Merge" (subtasksNeedPrs=false) |
 | 5b | Fail → | `completeQA(passed: false, notes)` → "Needs Implementation Update" |
 | Escalate | 3 failed consensus attempts | `escalate` → "Needs Human Clarification" |
 
