@@ -68,7 +68,7 @@ When you get a ticket, check if it has a `subtasks` array in the returned JSON. 
 
 - If a subtask has a non-terminal status (not "Done" or "Cancelled"), it needs to be progressed independently through the lifecycle using `subtaskId` in the relevant tools
 - Process subtasks one at a time, fully through the lifecycle, before working on the parent
-- For a given subtask, call tools with the parent's `id` and the subtask's `id` as `subtaskId` — all post-implementation tools (`completeImplementation`, `reviewImplementation`, `completeQA`, `completePR`, `finalizeTicket`, `cancelTicket`) support `subtaskId`
+- For a given subtask, call tools with the parent's `id` and the subtask's `id` as `subtaskId` — all post-implementation tools (`completeImplementation`, `reviewImplementation`, `completeQA`, `completePR`, `finalizeTicket`) support `subtaskId`
 - Once a subtask reaches "Done", move on to the next subtask
 - Only process the parent ticket itself once all subtasks are done
 
@@ -83,6 +83,7 @@ When you get a ticket, check if it has a `subtasks` array in the returned JSON. 
 - Needs QA - prd-qa-tickets
 - Needs PR - prd-pr-tickets
 - Needs Finalizing - prd-finalizing-tickets
+- Needs Cleanup - prd-cleanup-tickets
 
 # Inner Monologue
 

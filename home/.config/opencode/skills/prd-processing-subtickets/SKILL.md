@@ -40,7 +40,8 @@ For each pending subtask, advance it one stage at a time. Do not skip stages. Fo
 | "Needs Review" | `prd-reviewing-implementation` — reviews the subtask implementation |
 | "Needs QA" | `prd-qa-tickets` — runs QA on the subtask |
 | "Needs PR" | `prd-pr-tickets` — creates and completes the subtask's PR |
-| "Needs Finalizing" | `prd-finalizing-tickets` — finalizes the subtask, marking it Done |
+| "Needs Finalizing" | `prd-finalizing-tickets` — finalizes the subtask, marking it Needs Cleanup |
+| "Needs Cleanup" | `prd-cleanup-tickets` — cleans up worktree and branch, marks Done |
 | "Blocked" | `prd-blocked-tickets` — check if blocker resolved |
 | "Needs Reapproach" | `prd-reapproach-tickets` — revert and route back to replanning |
 

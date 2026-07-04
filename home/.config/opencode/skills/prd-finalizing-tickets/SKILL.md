@@ -8,7 +8,7 @@ user-invocable: false
 
 ## Overview
 
-Finalizing is the last stage before a ticket is marked Done. It performs a final sanity check that everything is complete — implementation, review, QA, and PR — before closing the ticket.
+Finalizing is the penultimate stage — after this, the ticket proceeds to cleanup before being marked Done. It performs a final sanity check that everything is complete — implementation, review, QA, and PR — before handing off to cleanup.
 
 ## When to use this skill
 
@@ -37,7 +37,7 @@ Agents should explore the repo to verify these points.
 ### Step 3: Act on Results
 
 If all checks pass:
-- Call `prd-system_finalizeTicket` to mark the ticket as "Done"
+- Call `prd-system_finalizeTicket` to mark the ticket as "Needs Cleanup"
 
 If there are outstanding issues:
 - Report what needs to be resolved and do not finalize
@@ -45,9 +45,9 @@ If there are outstanding issues:
 
 ### Step 4: Report
 
-Report back that the ticket has been finalized and is now marked as Done.
+Report back that the ticket has been finalized and is now marked as Needs Cleanup.
 
-Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
+Do not process the ticket any further — cleanup will be handled by the next loop when the ticket is picked up in Needs Cleanup status.
 
 ## Quick Reference
 
@@ -55,9 +55,9 @@ Do not process the ticket any further, only when asked to process the ticket aga
 |---|---|---|---|
 | 1 | Get ticket details | `prd-system_getTicket` |
 | 2 | Final validation | `validation` agents verify everything is complete |
-| 3a | All good → | `finalizeTicket` → "Done" |
+| 3a | All good → | `finalizeTicket` → "Needs Cleanup" |
 | 3b | Issues found → | Report; escalate if critical |
-| 4 | Report | Confirm ticket is Done |
+| 4 | Report | Confirm ticket is now marked as Needs Cleanup |
 
 ## Common Mistakes
 

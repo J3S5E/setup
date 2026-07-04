@@ -232,6 +232,8 @@ export const escalate = tool({
       prdData.status = "Needs Human Unblock";
     } else if (status === "Needs Finalizing") {
       prdData.status = "Needs Human Finalization";
+    } else if (status === "Needs Cleanup") {
+      prdData.status = "Needs Human Cleanup";
     }
 
     updatePrd(prdData, gitRepo);
@@ -1166,23 +1168,65 @@ export const finalizeTicket = tool({
       }
     }
 
+    ticket.status = "Needs Cleanup";
+
+    updatePrd(prd, gitRepo);
+
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} finalized and marked as Needs Cleanup.`;
+  },
+});
+
+export const completeCleanup = tool({
+  description:
+    "Completes the cleanup stage after worktree removal and branch deletion, transitioning a ticket or subtask from 'Needs Cleanup' to 'Done'. If a subtask was cleaned up and all subtasks are now Done, advances the parent from 'Needs Subtickets Processed' to 'Needs Implementing'.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to complete cleanup for"),
+  },
+  async execute({ id, gitRepo, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
+    }
+
+    if (ticket.status !== "Needs Cleanup") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows completing cleanup. Current status: ${ticket.status}.`;
+    }
+
     ticket.status = "Done";
 
-    // If a subtask was finalized and parent is waiting on subtickets, check if all are Done
+    // If a subtask was cleaned up and parent is waiting on subtickets, check if all are now Done
     if (subtaskId && prd.status === "Needs Subtickets Processed") {
-      const allDone = prd.subtasks!.every(s => s.status === "Done");
+      const allDone = prd.subtasks!.every(
+        (s: any) => s.status === "Done"
+      );
       if (allDone) {
         prd.status = "Needs Implementing";
         updatePrd(prd, gitRepo);
         const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
-        return `${label} finalized and marked as Done. All subtasks complete — parent ticket ${id} advanced to Needs Implementing.`;
+        return `${label} cleanup complete and marked as Done. All subtasks complete — parent ticket ${id} advanced to Needs Implementing.`;
       }
     }
 
     updatePrd(prd, gitRepo);
 
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
-    return `${label} finalized and marked as Done.`;
+    return `${label} cleanup complete and marked as Done.`;
   },
 });
 
@@ -1283,48 +1327,49 @@ export const unblockTicket = tool({
   },
 });
 
-export const cancelTicket = tool({
-  description:
-    "Cancels a ticket or subtask from any non-terminal status, moving it to Cancelled. Requires a reason.",
-  args: {
-    id: tool.schema.string().describe("Id of the ticket"),
-    gitRepo: tool.schema.string().describe("The Git repository name"),
-    subtaskId: tool.schema
-      .string()
-      .optional()
-      .describe("Id of the subtask to cancel"),
-    reason: tool.schema.string().describe("Reason for cancellation"),
-  },
-  async execute({ id, gitRepo, reason, subtaskId }) {
-    const prd = getPrd(id, gitRepo);
-    if (!prd) {
-      return `Ticket with ID ${id} not found.`;
-    }
-
-    const ticket = subtaskId
-      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
-      : prd;
-    if (!ticket) {
-      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
-    }
-
-    const terminalStatuses = ["Done", "Cancelled"];
-    if (terminalStatuses.includes(ticket.status)) {
-      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
-      return `${label} is already in a terminal state (${ticket.status}) and cannot be cancelled.`;
-    }
-
-    if (!reason || reason.trim() === "") {
-      return "Cancellation reason is required.";
-    }
-
-    ticket.status = "Cancelled";
-    updatePrd(prd, gitRepo);
-
-    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
-    return `${label} cancelled. Reason: ${reason}`;
-  },
-});
+// TODO: expose cancelTicket only when using a human-only tool wrapper
+// export const cancelTicket = tool({
+//   description:
+//     "Cancels a ticket or subtask from any non-terminal status, moving it to Cancelled. Requires a reason.",
+//   args: {
+//     id: tool.schema.string().describe("Id of the ticket"),
+//     gitRepo: tool.schema.string().describe("The Git repository name"),
+//     subtaskId: tool.schema
+//       .string()
+//       .optional()
+//       .describe("Id of the subtask to cancel"),
+//     reason: tool.schema.string().describe("Reason for cancellation"),
+//   },
+//   async execute({ id, gitRepo, reason, subtaskId }) {
+//     const prd = getPrd(id, gitRepo);
+//     if (!prd) {
+//       return `Ticket with ID ${id} not found.`;
+//     }
+//
+//     const ticket = subtaskId
+//       ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+//       : prd;
+//     if (!ticket) {
+//       return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+//     }
+//
+//     const terminalStatuses = ["Done", "Cancelled"];
+//     if (terminalStatuses.includes(ticket.status)) {
+//       const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+//       return `${label} is already in a terminal state (${ticket.status}) and cannot be cancelled.`;
+//     }
+//
+//     if (!reason || reason.trim() === "") {
+//       return "Cancellation reason is required.";
+//     }
+//
+//     ticket.status = "Cancelled";
+//     updatePrd(prd, gitRepo);
+//
+//     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+//     return `${label} cancelled. Reason: ${reason}`;
+//   },
+// });
 
 export const addSuggestion = tool({
   description:
