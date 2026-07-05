@@ -776,15 +776,18 @@ export const refineTicket = tool({
       return `Ticket with ID ${id} not found.`;
     }
 
-    if (prd.status !== "Needs Refinement") {
-      return `Ticket with ID ${id} is not in a state that allows refinement. Current status: ${prd.status}.`;
-    }
-
     const ticket = subtaskId
       ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
       : prd;
     if (!ticket) {
-      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
+    }
+
+    if (ticket.status !== "Needs Refinement") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is not in a state that allows refinement. Current status: ${ticket.status}.`;
     }
 
     const acCount = acceptanceCriterias.length;
