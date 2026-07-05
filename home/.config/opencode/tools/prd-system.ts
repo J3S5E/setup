@@ -708,10 +708,6 @@ export const assignWorkspace = tool({
       return `Ticket with ID ${id} not found.`;
     }
 
-    if (prd.status !== "Needs Plan" && prd.status !== "Needs Plan Updating") {
-      return `Ticket with ID ${id} is not in a state that allows workspace assignment. Current status: ${prd.status}.`;
-    }
-
     const ticket = subtaskId
       ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
       : prd;
@@ -719,6 +715,10 @@ export const assignWorkspace = tool({
       return subtaskId
         ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
         : `Ticket with ID ${id} not found.`;
+    }
+
+    if (ticket.status !== "Needs Plan" && ticket.status !== "Needs Plan Updating") {
+      return `Ticket with ID ${id} is not in a state that allows workspace assignment. Current status: ${ticket.status}.`;
     }
 
     ticket.featureBranch = featureBranch;
@@ -891,20 +891,22 @@ export const savePlan = tool({
       return `Ticket with ID ${id} not found.`;
     }
 
-    if (prd.status !== "Needs Plan" && prd.status !== "Needs Plan Updating") {
-      return `Ticket with ID ${id} is not in a state that allows saving a plan. Current status: ${prd.status}.`;
-    }
-
     const ticket = subtaskId
       ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
       : prd;
     if (!ticket) {
-      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
+    }
+
+    if (ticket.status !== "Needs Plan" && ticket.status !== "Needs Plan Updating") {
+      return `Ticket with ID ${id} is not in a state that allows saving a plan. Current status: ${ticket.status}.`;
     }
 
     ticket.plan = plan;
-    prd.planIssues = [];
-    prd.blockingIssues = [];
+    ticket.planIssues = [];
+    ticket.blockingIssues = [];
     updatePrd(prd, gitRepo);
 
     const target = subtaskId ? `subtask ${subtaskId}` : `ticket ${id}`;
@@ -922,50 +924,76 @@ export const finalizePlanning = tool({
       .describe(
         "The name of the Git repository to filter PRDs by. If not provided, lists all PRDs.",
       ),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to finalize — if finalizing a single subtask"),
   },
-  async execute({ id, gitRepo }) {
+  async execute({ id, gitRepo, subtaskId }) {
     const prd = getPrd(id, gitRepo);
     if (!prd) {
       return `Ticket with ID ${id} not found.`;
     }
 
-    if (prd.status !== "Needs Plan" && prd.status !== "Needs Plan Updating") {
-      return `Ticket with ID ${id} is not in a state that allows finalizing planning. Current status: ${prd.status}.`;
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
     }
 
-    if (!prd.plan) {
-      return `Ticket with ID ${id} cannot be finalized. Please ensure the plan is saved before finalizing.`;
+    if (ticket.status !== "Needs Plan" && ticket.status !== "Needs Plan Updating") {
+      return `${subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`} is not in a state that allows finalizing planning. Current status: ${ticket.status}.`;
     }
 
-    if (!prd.targetBranch) {
-      return `Ticket with ID ${id} cannot be finalized. No target branch set.`;
-    }
-
-    if (!prd.featureBranch || !prd.worktreeDir) {
-      return `Ticket with ID ${id} cannot be finalized. Please assign a feature branch and worktree dir via assignWorkspace before finalizing.`;
-    }
-
-    for (const subtask of prd.subtasks || []) {
-      if (!subtask.plan) {
-        return `Subtask with ID ${subtask.id} cannot be finalized. Please ensure a plan is saved for all subtasks.`;
+    if (subtaskId) {
+      if (!ticket.plan) {
+        return `Subtask ${subtaskId} cannot be finalized. Please ensure a plan is saved before finalizing.`;
       }
-      if (!subtask.featureBranch || !subtask.worktreeDir) {
-        return `Subtask with ID ${subtask.id} cannot be finalized. Please assign a feature branch and worktree dir via assignWorkspace before finalizing.`;
+      if (!ticket.featureBranch || !ticket.worktreeDir) {
+        return `Subtask ${subtaskId} cannot be finalized. Please assign a feature branch and worktree dir via assignWorkspace before finalizing.`;
       }
-      if (!subtask.targetBranch) {
-        return `Subtask with ID ${subtask.id} cannot be finalized. Target branch not set — assignWorkspace on the subtask should set it to the parent's featureBranch.`;
+      if (!ticket.targetBranch) {
+        return `Subtask ${subtaskId} cannot be finalized. Target branch not set — assignWorkspace on the subtask should set it to the parent's featureBranch.`;
       }
-      if (subtask.targetBranch !== prd.featureBranch) {
-        return `Subtask with ID ${subtask.id} targetBranch="${subtask.targetBranch}" does not match parent's featureBranch="${prd.featureBranch}". Re-run assignWorkspace on the subtask to fix.`;
+      if (ticket.targetBranch !== prd.featureBranch) {
+        return `Subtask ${subtaskId} targetBranch="${ticket.targetBranch}" does not match parent's featureBranch="${prd.featureBranch}". Re-run assignWorkspace on the subtask to fix.`;
       }
-      subtask.status = "Ready Plan Review";
+      ticket.status = "Ready Plan Review";
+    } else {
+      if (!prd.plan) {
+        return `Ticket with ID ${id} cannot be finalized. Please ensure the plan is saved before finalizing.`;
+      }
+      if (!prd.targetBranch) {
+        return `Ticket with ID ${id} cannot be finalized. No target branch set.`;
+      }
+      if (!prd.featureBranch || !prd.worktreeDir) {
+        return `Ticket with ID ${id} cannot be finalized. Please assign a feature branch and worktree dir via assignWorkspace before finalizing.`;
+      }
+      for (const subtask of prd.subtasks || []) {
+        if (!subtask.plan) {
+          return `Subtask with ID ${subtask.id} cannot be finalized. Please ensure a plan is saved for all subtasks.`;
+        }
+        if (!subtask.featureBranch || !subtask.worktreeDir) {
+          return `Subtask with ID ${subtask.id} cannot be finalized. Please assign a feature branch and worktree dir via assignWorkspace before finalizing.`;
+        }
+        if (!subtask.targetBranch) {
+          return `Subtask with ID ${subtask.id} cannot be finalized. Target branch not set — assignWorkspace on the subtask should set it to the parent's featureBranch.`;
+        }
+        if (subtask.targetBranch !== prd.featureBranch) {
+          return `Subtask with ID ${subtask.id} targetBranch="${subtask.targetBranch}" does not match parent's featureBranch="${prd.featureBranch}". Re-run assignWorkspace on the subtask to fix.`;
+        }
+        subtask.status = "Ready Plan Review";
+      }
+      prd.status = "Ready Plan Review";
+      prd.planIteration++;
     }
 
-    prd.status = "Ready Plan Review";
-    prd.planIteration++;
     updatePrd(prd, gitRepo);
 
-    return `Ticket with ID ${id} finalized and marked as Ready Plan Review.`;
+    return `${subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`} finalized and marked as Ready Plan Review.`;
   },
 });
 
