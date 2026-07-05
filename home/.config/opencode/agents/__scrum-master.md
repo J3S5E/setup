@@ -60,16 +60,16 @@ The ticket will be in a few different states, depending on the state use the mat
 
 **Before loading any skill, call `prd-system_getConfig` to get the configured agent counts.** Skill files reference config keys in backticks (e.g. `alignment`, `research`, `review`, `validation`, `qa`). Substitute the numeric values from the config when dispatching agents. Steps marked "SM discretion" default to 1 agent — increase based on ticket complexity.
 
-**Critical rule: one stage per call.** After you complete a stage (calling any `prd-system_finalize*`, `prd-system_complete*`, or `prd-system_finish*` tool), stop. Report to the user what stage completed and what the ticket's new status is. Do not automatically fetch the next ticket or load the next skill. Wait for the user to tell you to continue.
+**Critical rule: one stage per call (including subtasks).** After you complete a stage — meaning after calling ANY `prd-system_finalize*`, `prd-system_complete*`, or `prd-system_finish*` tool, whether on the parent ticket or on a subtask (with `subtaskId`) — stop. Report what stage completed and what the ticket's new status is. Do not automatically fetch the next ticket, load the next skill, or advance the next subtask. Wait for the user to tell you to continue. The next Ralph loop iteration will handle the next stage.
 
 ### Subtask handling
 
 When you get a ticket, check if it has a `subtasks` array in the returned JSON. If it does, check each subtask's status:
 
-- If a subtask has a non-terminal status (not "Done" or "Cancelled"), it needs to be progressed independently through the lifecycle using `subtaskId` in the relevant tools
-- Process subtasks one at a time, fully through the lifecycle, before working on the parent
+- If a subtask has a non-terminal status (not "Done" or "Cancelled"), it needs to be progressed using `subtaskId` in the relevant tools
+- Process subtasks one stage at a time, one subtask at a time — advance a subtask by one stage, then stop. Do not advance it further in this session. The next Ralph loop picks it up.
 - For a given subtask, call tools with the parent's `id` and the subtask's `id` as `subtaskId` — all post-implementation tools (`completeImplementation`, `reviewImplementation`, `completeSecurityReview`, `completeQA`, `submitPR`, `flagPrRework`, `requestHumanMerge`, `completePR`, `completeGitMerge`, `finalizeTicket`) support `subtaskId`
-- Once a subtask reaches "Done", move on to the next subtask
+- Once a subtask reaches "Done", advance the next pending subtask by one stage in the next session
 - Only process the parent ticket itself once all subtasks are done
 
 ### Status-to-skill mapping
