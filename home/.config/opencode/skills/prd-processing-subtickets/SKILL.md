@@ -58,6 +58,8 @@ For each pending subtask, advance it one stage at a time. Do not skip stages. Fo
 - `prd-system_completeGitMerge(id=parentId, gitRepo, subtaskId=subtaskId)` (if direct merge path)
 - `prd-system_completePR(id=parentId, gitRepo, subtaskId=subtaskId)` (after merge confirmed)
 - `prd-system_finalizeTicket(id=parentId, gitRepo, subtaskId=subtaskId)`
+- `prd-system_addSuggestion(id=parentId, gitRepo, subtaskId=subtaskId, ...)` (out-of-scope observations)
+- `prd-system_resolveSuggestion(id=parentId, gitRepo, subtaskId=subtaskId, ...)` (mark suggestions resolved)
 
 The subtask's PR merges into its `targetBranch` (the parent's `featureBranch`), not into `main`.
 

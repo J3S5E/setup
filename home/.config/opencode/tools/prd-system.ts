@@ -1,6 +1,7 @@
 import { tool } from "@opencode-ai/plugin";
 import * as fs from "fs";
 import * as path from "path";
+import crypto from "crypto";
 
 type Suggestion = {
   suggestionId: string;
@@ -19,6 +20,16 @@ type Deviation = {
   createdAt: string;
   reviewResult?: { accepted: boolean; comment?: string };
   qaResult?: { validated: boolean; comment?: string };
+};
+
+type Evidence = {
+  evidenceId: string;
+  description: string;
+  type: "screenshot" | "api_response" | "build_output" | "test_output" | "migration_output" | "log_evidence" | "security_scan";
+  source: "implementation" | "review" | "qa" | "security" | "pr_maintenance";
+  filePath: string;
+  contentType: string;
+  createdAt: string;
 };
 
 type Prd = Ticket & {
@@ -58,7 +69,31 @@ type Ticket = {
   prCommentsValidated?: boolean;
   blockedReason?: string;
   previousStatus?: string;
+  evidence?: Evidence[];
 };
+
+const EXT_MAP: Record<string, string> = {
+  "image/png": ".png",
+  "image/jpeg": ".jpg",
+  "image/gif": ".gif",
+  "image/webp": ".webp",
+  "text/plain": ".txt",
+  "application/json": ".json",
+  "text/html": ".html",
+  "text/markdown": ".md",
+};
+
+function extForContentType(contentType: string): string {
+  return EXT_MAP[contentType] || ".bin";
+}
+
+function assertPathWithinPrds(resolved: string): void {
+  const prds = path.resolve(getPrdsFolder());
+  const target = path.resolve(resolved);
+  if (!target.startsWith(prds)) {
+    throw new Error(`Path traversal denied: ${target} is outside ${prds}`);
+  }
+}
 
 function hasSubtasks(prd: Prd): boolean {
   return !!prd.subtasks && prd.subtasks.length > 0;
@@ -155,6 +190,7 @@ export const create = tool({
       targetBranch,
       featureBranch: "",
       worktreeDir: "",
+      evidence: [],
     };
 
     updatePrd(prdData, gitRepo);
@@ -1375,6 +1411,7 @@ export const finalizeReapproach = tool({
     ticket.status = "Needs Plan Updating";
     ticket.planIssues = undefined;
     ticket.blockingIssues = undefined;
+    ticket.evidence = [];
     if (!subtaskId) {
       prd.planIteration = 0;
     }
@@ -1459,6 +1496,19 @@ export const completeCleanup = tool({
     if (ticket.status !== "Needs Cleanup") {
       const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
       return `${label} is not in a state that allows completing cleanup. Current status: ${ticket.status}.`;
+    }
+
+    // Remove evidence directory for this ticket (parent tickets only)
+    if (!subtaskId) {
+      const evPath = path.join(getPrdsFolder(), "evidence", `${gitRepo}__${id}`);
+      if (fs.existsSync(evPath)) {
+        try {
+          assertPathWithinPrds(evPath);
+          fs.rmSync(evPath, { recursive: true, force: true });
+        } catch {
+          // non-fatal
+        }
+      }
     }
 
     ticket.status = "Done";
@@ -1637,11 +1687,11 @@ export const addSuggestion = tool({
       .describe("The suggestion message describing the out-of-scope observation"),
     source: tool.schema
       .string()
-      .describe("Source of the suggestion: planning, implementation, review, or qa"),
+      .describe("Source of the suggestion: planning, implementation, review, qa, or security"),
     subtaskId: tool.schema
       .string()
       .optional()
-      .describe("Id of the subtask if the suggestion originates from a subtask"),
+      .describe("Id of the subtask if the suggestion originates from or should be added to a subtask"),
   },
   async execute({ id, gitRepo, message, source, subtaskId }) {
     const prd = getPrd(id, gitRepo);
@@ -1651,8 +1701,14 @@ export const addSuggestion = tool({
     if (!["planning", "implementation", "review", "qa", "security"].includes(source)) {
       return `Invalid source: ${source}. Must be one of: planning, implementation, review, qa, security.`;
     }
-    if (!prd.suggestions) {
-      prd.suggestions = [];
+    const target = subtaskId
+      ? prd.subtasks?.find((st: any) => st.id === subtaskId)
+      : prd;
+    if (subtaskId && !target) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+    if (!target.suggestions) {
+      target.suggestions = [];
     }
     const suggestion = {
       suggestionId: crypto.randomUUID(),
@@ -1660,9 +1716,10 @@ export const addSuggestion = tool({
       source,
       createdAt: new Date().toISOString(),
     };
-    prd.suggestions.push(suggestion);
+    target.suggestions.push(suggestion);
     updatePrd(prd, gitRepo);
-    return `Suggestion added with ID ${suggestion.suggestionId}.`;
+    const label = subtaskId ? `Subtask ${subtaskId} of ticket ${id}` : `Ticket ${id}`;
+    return `Suggestion added to ${label} with ID ${suggestion.suggestionId}.`;
   },
 });
 
@@ -1675,16 +1732,27 @@ export const resolveSuggestion = tool({
     suggestionId: tool.schema
       .string()
       .describe("Id of the suggestion to mark as resolved"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask the suggestion belongs to"),
   },
-  async execute({ id, gitRepo, suggestionId }) {
+  async execute({ id, gitRepo, suggestionId, subtaskId }) {
     const prd = getPrd(id, gitRepo);
     if (!prd) {
       return `Ticket with ID ${id} not found.`;
     }
-    if (!prd.suggestions) {
-      return `No suggestions found for ticket with ID ${id}.`;
+    const ticket = subtaskId
+      ? prd.subtasks?.find((st: any) => st.id === subtaskId)
+      : prd;
+    if (subtaskId && !ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
     }
-    const suggestion = prd.suggestions.find(
+    if (!ticket.suggestions) {
+      const label = subtaskId ? `Subtask ${subtaskId} of ticket ${id}` : `Ticket ${id}`;
+      return `No suggestions found for ${label}.`;
+    }
+    const suggestion = ticket.suggestions.find(
       (s: any) => s.suggestionId === suggestionId,
     );
     if (!suggestion) {
@@ -1695,7 +1763,8 @@ export const resolveSuggestion = tool({
     }
     suggestion.resolvedAt = new Date().toISOString();
     updatePrd(prd, gitRepo);
-    return `Suggestion with ID ${suggestionId} marked as resolved.`;
+    const label = subtaskId ? `Subtask ${subtaskId} of ticket ${id}` : `Ticket ${id}`;
+    return `Suggestion with ID ${suggestionId} marked as resolved on ${label}.`;
   },
 });
 
@@ -1830,5 +1899,211 @@ export const qaDeviation = tool({
     updatePrd(prd, gitRepo);
     const outcome = validated ? "validated" : "flagged";
     return `Deviation with ID ${deviationId} QA'd and ${outcome}.`;
+  },
+});
+
+export const addEvidence = tool({
+  description:
+    "Copies an existing file as evidence for a ticket. Takes a path to an existing file (screenshot, API response, log, etc.), copies it to the PRD evidence directory, and records the metadata in the ticket's evidence array.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    description: tool.schema
+      .string()
+      .min(3)
+      .max(500)
+      .describe("Description of the evidence (e.g., 'POST /comments returns 201')"),
+    type: tool.schema
+      .string()
+      .describe("Type of evidence: screenshot, api_response, build_output, test_output, migration_output, log_evidence, or security_scan"),
+    source: tool.schema
+      .string()
+      .describe("Source of the evidence: implementation, review, qa, security, or pr_maintenance"),
+    existingFilePath: tool.schema
+      .string()
+      .describe("Absolute path to the existing file to copy as evidence"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask this evidence belongs to"),
+  },
+  async execute({ id, gitRepo, description, type, source, existingFilePath, subtaskId }) {
+    const validTypes = ["screenshot", "api_response", "build_output", "test_output", "migration_output", "log_evidence", "security_scan"];
+    if (!validTypes.includes(type)) {
+      return `Invalid type: ${type}. Must be one of: ${validTypes.join(", ")}.`;
+    }
+    const validSources = ["implementation", "review", "qa", "security", "pr_maintenance"];
+    if (!validSources.includes(source)) {
+      return `Invalid source: ${source}. Must be one of: ${validSources.join(", ")}.`;
+    }
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+    const ticket = subtaskId
+      ? prd.subtasks?.find((st: any) => st.id === subtaskId)
+      : prd;
+    if (subtaskId && !ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+    if (ticket.status === "Done" || ticket.status === "Cancelled") {
+      return `Cannot add evidence: ticket is already ${ticket.status}.`;
+    }
+    if (!fs.existsSync(existingFilePath)) {
+      return `File not found: ${existingFilePath}`;
+    }
+    const stat = fs.statSync(existingFilePath);
+    if (!stat.isFile()) {
+      return `Path is not a file: ${existingFilePath}`;
+    }
+    if (stat.size > 10 * 1024 * 1024) {
+      return `File too large: ${(stat.size / 1024 / 1024).toFixed(1)}MB. Maximum is 10MB.`;
+    }
+    const evDir = path.join(getPrdsFolder(), "evidence", `${gitRepo}__${id}`);
+    if (!fs.existsSync(evDir)) {
+      fs.mkdirSync(evDir, { recursive: true });
+    }
+    assertPathWithinPrds(evDir);
+    const ext = path.extname(existingFilePath) || extForContentType(type === "screenshot" ? "image/png" : "text/plain");
+    const evidenceId = crypto.randomUUID();
+    const slug = description
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 60) || "evidence";
+    const destFile = `${slug}__${evidenceId}${ext}`;
+    const destPath = path.join(evDir, destFile);
+    assertPathWithinPrds(destPath);
+    fs.copyFileSync(existingFilePath, destPath);
+    const contentType = type === "screenshot" ? "image/png" :
+      type === "api_response" ? "application/json" :
+      type === "build_output" || type === "test_output" || type === "log_evidence" || type === "migration_output" ? "text/plain" :
+      type === "security_scan" ? "application/json" : "application/octet-stream";
+    const relativePath = path.join("evidence", `${gitRepo}__${id}`, destFile);
+    const evidence = {
+      evidenceId,
+      description,
+      type,
+      source,
+      filePath: relativePath,
+      contentType,
+      createdAt: new Date().toISOString(),
+    };
+    if (!ticket.evidence) {
+      ticket.evidence = [];
+    }
+    ticket.evidence.push(evidence);
+    updatePrd(prd, gitRepo);
+    return `Evidence added with ID ${evidenceId} (${destPath}).`;
+  },
+});
+
+export const removeEvidence = tool({
+  description:
+    "Removes an evidence entry from a ticket by its evidenceId. Deletes the file from disk and removes the metadata from the ticket JSON. Cannot be called on Done or Cancelled tickets.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    evidenceId: tool.schema.string().describe("Id of the evidence entry to remove"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask this evidence belongs to"),
+  },
+  async execute({ id, gitRepo, evidenceId, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+    const ticket = subtaskId
+      ? prd.subtasks?.find((st: any) => st.id === subtaskId)
+      : prd;
+    if (subtaskId && !ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+    if (ticket.status === "Done" || ticket.status === "Cancelled") {
+      return `Cannot remove evidence: ticket is already ${ticket.status}.`;
+    }
+    if (!ticket.evidence) {
+      return `No evidence found for this ticket.`;
+    }
+    const idx = ticket.evidence.findIndex((e: any) => e.evidenceId === evidenceId);
+    if (idx === -1) {
+      return `Evidence with ID ${evidenceId} not found.`;
+    }
+    const record = ticket.evidence[idx];
+    ticket.evidence.splice(idx, 1);
+    const filePath = path.join(getPrdsFolder(), record.filePath);
+    if (fs.existsSync(filePath)) {
+      try {
+        assertPathWithinPrds(filePath);
+        fs.rmSync(filePath, { force: true });
+      } catch {
+        // non-fatal
+      }
+    }
+    updatePrd(prd, gitRepo);
+    return `Evidence with ID ${evidenceId} removed.`;
+  },
+});
+
+export const getEvidence = tool({
+  description:
+    "Returns all evidence entries for a ticket (or specific subtask) as JSON. Optionally reads file content for a specific evidenceId. Use this to review collected evidence before PR creation or finalization.",
+  args: {
+    id: tool.schema.string().describe("Id of the ticket"),
+    gitRepo: tool.schema.string().describe("The Git repository name"),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to get evidence for"),
+    evidenceId: tool.schema
+      .string()
+      .optional()
+      .describe("If provided, reads the file content for this specific evidence entry"),
+    maxChars: tool.schema
+      .number()
+      .optional()
+      .describe("Maximum characters to read from the evidence file (default: 10000)"),
+  },
+  async execute({ id, gitRepo, subtaskId, evidenceId, maxChars }) {
+    const prd = getPrd(id, gitRepo);
+    if (!prd) {
+      return `Ticket with ID ${id} not found.`;
+    }
+    const ticket = subtaskId
+      ? prd.subtasks?.find((st: any) => st.id === subtaskId)
+      : prd;
+    if (subtaskId && !ticket) {
+      return `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`;
+    }
+    if (!ticket.evidence || ticket.evidence.length === 0) {
+      return `No evidence found for this ticket.`;
+    }
+    if (evidenceId) {
+      const record = ticket.evidence.find((e: any) => e.evidenceId === evidenceId);
+      if (!record) {
+        return `Evidence with ID ${evidenceId} not found.`;
+      }
+      const filePath = path.join(getPrdsFolder(), record.filePath);
+      if (!fs.existsSync(filePath)) {
+        return JSON.stringify({ metadata: record, error: "File not found on disk" }, null, 2);
+      }
+      if (record.contentType.startsWith("image/")) {
+        return JSON.stringify({ metadata: record, content: "[Binary image — cannot display as text. Reference the filePath directly.]" }, null, 2);
+      }
+      const limit = maxChars || 10000;
+      const content = fs.readFileSync(filePath, "utf-8");
+      const truncated = content.length > limit;
+      const body = truncated ? content.slice(0, limit) : content;
+      let warning = "";
+      if (truncated) {
+        const actualBytes = Buffer.byteLength(content, "utf-8");
+        const shownBytes = Buffer.byteLength(body, "utf-8");
+        warning = `\n\n[Warning: Output truncated at ${shownBytes} bytes. Full size is ${actualBytes} bytes. Use getEvidence with a larger maxChars to read more.]`;
+      }
+      return JSON.stringify({ metadata: record, content: body }, null, 2) + warning;
+    }
+    return JSON.stringify(ticket.evidence, null, 2);
   },
 });

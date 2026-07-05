@@ -37,6 +37,13 @@ Dispatch agents to run:
 - `gh pr view <prUrl> --json statusCheckRollup` — get CI check statuses
 - `gh pr view <prUrl> --json comments,reviews` — get PR comments/reviews
 
+### Step 2b: Collect PR Maintenance Evidence
+
+Before routing based on findings, save CI and PR review output as evidence:
+- CI check results → `prd-system_addEvidence` with `source="pr_maintenance"`,
+  type `build_output`, and the CI status text
+- If the PR has review comments, capture relevant ones as `log_evidence`
+
 ### Step 3: Evaluate CI
 
 If any required CI check failed:
@@ -71,7 +78,8 @@ If council can't reach consensus after 3 rounds → `escalate(id, gitRepo, subta
 |------|--------|-------------|
 | 0 | Check if already merged | `gh pr view --json merged` → merged? → `completePR` |
 | 1 | Get ticket | `getTicket` → read prUrl |
-| 2 | Fetch CI + comments | `gh pr view --json statusCheckRollup,comments,reviews` |
+| 2 | Fetch CI + comments | `gh pr view --json statusCheckRollup,comments,reviews` + save as evidence |
+| 2b | Collect evidence | `addEvidence` with source="pr_maintenance" |
 | 3 | CI failed? | Council votes → `flagPrRework` |
 | 4 | CI passed? Validate comments | Agents evaluate each comment |
 | 5a | Comments found → | Council votes severity → `flagPrRework` |

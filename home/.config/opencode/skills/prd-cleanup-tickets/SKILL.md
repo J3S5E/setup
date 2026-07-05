@@ -51,6 +51,9 @@ If the worktree directory or branch doesn't exist, note it and proceed — parti
 
 Call `prd-system_completeCleanup` to mark the ticket as Done.
 
+> **Note:** Evidence directory cleanup is automatic via
+> `prd-system_completeCleanup` — no manual action needed.
+
 Report back that cleanup is complete and the ticket is now marked as Done.
 
 ## Quick Reference

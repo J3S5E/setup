@@ -34,6 +34,8 @@ When implementing a parent ticket that has subtasks, the subtasks in non-termina
    - `prd-system_completeGitMerge(id=parentId, gitRepo, subtaskId=subtaskId)` (if subtasksNeedPrs=false)
    - `prd-system_completePR(id=parentId, gitRepo, subtaskId=subtaskId)` (after merge confirmed)
    - `prd-system_finalizeTicket(id=parentId, gitRepo, subtaskId=subtaskId)`
+   - `prd-system_addSuggestion(id=parentId, gitRepo, subtaskId=subtaskId, ...)` (out-of-scope observations)
+   - `prd-system_resolveSuggestion(id=parentId, gitRepo, subtaskId=subtaskId, ...)` (mark suggestions resolved)
 4. The subtask's PR merges into its `targetBranch` (the parent's `featureBranch`), not into `main`
 5. Once a subtask is finalized to "Done", its code is part of the parent's `featureBranch`
 
@@ -78,9 +80,9 @@ Collect their implementations. If agents propose different approaches, dispatch 
 
 After collecting agent reports and finalizing the implementation, process observations:
 
-**Suggestions:** For each unique out-of-scope observation reported by agents, first filter: **"Does this observation block the implementation or affect whether the acceptance criteria can be met?"** If yes → it is not a suggestion — handle it through the normal flow (callback to the Scrum Master to address before proceeding). If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="implementation". These will be surfaced in the PR description as "Things to consider before merging".
+**Suggestions:** For each unique out-of-scope observation reported by agents, first filter: **"Does this observation block the implementation or affect whether the acceptance criteria can be met?"** If yes → it is not a suggestion — handle it through the normal flow (callback to the Scrum Master to address before proceeding). If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="implementation" (include `subtaskId` if this is a subtask). These will be surfaced in the PR description as "Things to consider before merging".
 
-**Resolved suggestions:** If an agent fixed an existing suggestion (one added earlier in planning), call `prd-system_resolveSuggestion` to mark it as resolved. Resolved suggestions appear under "Items resolved during implementation" in the PR description instead.
+**Resolved suggestions:** If an agent fixed an existing suggestion (one added earlier in planning), call `prd-system_resolveSuggestion` to mark it as resolved (include `subtaskId` if the suggestion belongs to a subtask). Resolved suggestions appear under "Items resolved during implementation" in the PR description instead.
 
 **Deviations:** For each intentional deviation from the plan, call `prd-system_addDeviation` to record it. This must include: which plan item was skipped or replaced, why, and what was done instead (if replaced). Deviations are evaluated during Review — if the reviewer rejects a deviation, it must be addressed before proceeding.
 
@@ -96,6 +98,23 @@ Use the `Hand of the King` agent to recommend `validation` agents appropriate fo
 - Are recorded deviations safe and justified? (check each one)
 
 If the implementation does not meet all acceptance criteria, dispatch additional agents to fix specific gaps. Repeat until all criteria are met.
+
+### Step 3b: Collect Implementation Evidence
+
+After all verification passes, collect evidence of the working implementation.
+Dispatch an agent to capture evidence using available tools (curl, CLI, browser MCPs).
+Call `prd-system_addEvidence` with `source="implementation"` for each piece:
+
+- API responses (curl output, HTTP response bodies)
+- Migration output (CLI stdout)
+- Build/log output (test run results, compilation output)
+- Screenshots of working features (browser MCP screenshots)
+
+Evidence types to use: `api_response`, `migration_output`, `build_output`,
+`test_output`, `screenshot`, `log_evidence`.
+
+Optional — skip entirely if collecting evidence is impractical for this
+ticket's nature (e.g., pure refactoring with no observable output).
 
 ### Step 4: Mark Implementation Complete
 
@@ -123,7 +142,7 @@ Do not process the ticket any further, only when asked to process the ticket aga
 - **Merging subtask branches into the wrong target.** A subtask's `targetBranch` is the parent's `featureBranch`, not `main`. The parent ticket's `targetBranch` is `main` (or the project's main integration branch).
 - **Missing the ticket's workspace info.** Always check `featureBranch` and `worktreeDir` on the ticket before starting implementation.
 - **Skipping Step 1 understanding.** Jumping straight into implementation without confirming plan understanding leads to wasted work. Always align first.
-- **Over-engineering (scope creep).** Stick to the plan and acceptance criteria. Resist the urge to add extra features or refactor unrelated code. If you find something worth fixing outside scope but it's purely informational and non-blocking, capture it as a suggestion via `prd-system_addSuggestion` instead. If it blocks the implementation, raise it through the normal flow — do not use suggestions as a workaround for blockers.
+- **Over-engineering (scope creep).** Stick to the plan and acceptance criteria. Resist the urge to add extra features or refactor unrelated code. If you find something worth fixing outside scope but it's purely informational and non-blocking, capture it as a suggestion via `prd-system_addSuggestion` (include `subtaskId` if this is a subtask) instead. If it blocks the implementation, raise it through the normal flow — do not use suggestions as a workaround for blockers.
 - **Not writing tests.** The plan specifies a testing approach — follow it. Untested changes cannot be verified.
 - **Not reporting deviations.** If the plan needs to change during implementation, call `prd-system_addDeviation` to record it. Silent divergence from the plan causes rework later.
 - **Fixing out-of-scope issues inline.** Fixing pre-existing bugs or refactoring unrelated code bloats the ticket and delays the PR. If the observation is non-blocking, capture it as a suggestion, not an implementation change. If it's blocking, raise it — don't silently fix it.

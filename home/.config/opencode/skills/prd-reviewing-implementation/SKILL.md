@@ -48,7 +48,7 @@ After collecting independent review reports:
 
 If the ticket has deviations but none of the agents evaluated them (they were not dispatched with deviation context), dispatch a single agent specifically to review each deviation.
 
-**Suggestions:** For each unique out-of-scope observation reported by agents, first filter: **"Does this observation affect whether the implementation meets acceptance criteria or should it block the ticket from proceeding?"** If yes → it belongs in review comments (which determine pass/fail), not in suggestions. If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="review". These accumulate and are surfaced in the PR description. Do not include out-of-scope observations in review comments.
+**Suggestions:** For each unique out-of-scope observation reported by agents, first filter: **"Does this observation affect whether the implementation meets acceptance criteria or should it block the ticket from proceeding?"** If yes → it belongs in review comments (which determine pass/fail), not in suggestions. If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="review" (include `subtaskId` if this is a subtask). These accumulate and are surfaced in the PR description. Do not include out-of-scope observations in review comments.
 
 ### Step 4: Consolidate Feedback
 
@@ -61,6 +61,20 @@ Dispatch `validation` agents with the full ticket details and the consolidated l
 If agents disagree on whether an issue is valid, dispatch an additional agent as a tiebreaker. The majority verdict determines whether the issue should be acted on.
 
 Only issues confirmed as valid by the majority should be included in the final review comments.
+
+### Step 5b: Attach Evidence
+
+If valid issues were found, attach evidence demonstrating each issue:
+- Call `prd-system_addEvidence` with `source="review"` for each valid issue
+- Use `screenshot` for UI bugs, `log_evidence` for error logs,
+  `api_response` for broken API behavior, `test_output` for failing tests
+- Reference evidence IDs in the review comments so the implementer can
+  see exactly what was observed
+
+If no valid issues were found, attach at least one piece of evidence
+confirming the review was conducted (e.g., a screenshot confirming an
+acceptance criterion is met, or test output showing all tests pass).
+This provides auditability that a review actually happened.
 
 ### Step 6: Act on Feedback
 
@@ -101,5 +115,5 @@ If you reached Step 5 three times and agents are still unable to reach consensus
 - **Sharing review outcomes between agents during Step 3.** Each reviewer should explore independently — you want divergent perspectives, not groupthink.
 - **Focusing on style over substance.** Prioritize correctness, completeness, and security over personal code style preferences.
 - **Not checking tests.** If tests are missing or failing, that's a review finding even if the implementation looks correct.
-- **Mixing suggestions into review comments.** If an out-of-scope observation affects whether the implementation meets acceptance criteria, include it in review comments (pass/fail). Only if it's purely informational and non-blocking should it be captured as a suggestion via `prd-system_addSuggestion`.
+- **Mixing suggestions into review comments.** If an out-of-scope observation affects whether the implementation meets acceptance criteria, include it in review comments (pass/fail). Only if it's purely informational and non-blocking should it be captured as a suggestion via `prd-system_addSuggestion` (include `subtaskId` if this is a subtask).
 - **Skipping deviation review.** If the ticket has deviations, they must be independently reviewed and recorded via `prd-system_reviewDeviation`. A rejected deviation is a review finding — don't let it slip through.

@@ -32,6 +32,27 @@ From ticket: `featureBranch` (source), `targetBranch` (destination).
 
 Omit any section that has no entries.
 
+- **Evidence Collected:** If the ticket has evidence entries, add this section.
+  Group by `source` (implementation, review, qa, security, pr_maintenance).
+  For each evidence entry:
+  - If `contentType` starts with `image/` or content >200 chars:
+    `[Evidence: <description> — <filePath>]`
+  - If content ≤200 chars and text-based: inline the content directly.
+    Call `prd-system_getEvidence` with the entry's `evidenceId` to read its content.
+  - Example output format:
+    ```
+    ### Evidence Collected
+
+    **implementation:**
+    - POST /comments returns 201 — evidence/repo__id/abc.json
+    - Migration ran successfully — evidence/repo__id/def.txt
+
+    **qa:**
+    - Homepage renders correctly — evidence/repo__id/ghi.png
+    ```
+  Omit source sections that have no entries.
+  Omit the entire section if the ticket has no evidence.
+
 ### Step 3: Create the PR
 
 Dispatch an agent to run `gh pr create` with the feature branch, target branch, title, and body. If the branch already has a PR, use `gh pr update`.
@@ -55,7 +76,7 @@ If the PR cannot be created (branch not found, auth failure, etc.):
 |------|--------|-------------|
 | 0 | Get ticket, check prUrl | Re-entry? Skip to Step 4 |
 | 1 | Determine branches | featureBranch → targetBranch |
-| 2 | Build PR body | Suggestions + Deviations from ticket |
+| 2 | Build PR body | Suggestions + Deviations + Evidence from ticket |
 | 3 | Create PR | `gh pr create` or `gh pr update` |
 | 4 | Call submitPR | New PR: with prUrl. Re-entry: without |
 

@@ -46,13 +46,29 @@ After collecting independent QA reports:
 
 **Deviations:** For each recorded deviation on the ticket, check the agents' verdicts. If agents disagree on whether a deviation is safe, dispatch an additional agent as a tiebreaker. Call `prd-system_qaDeviation` for each deviation with the majority verdict. If any deviation is flagged, record it as a QA issue — flagged deviations mean the implementer must address them.
 
-**Suggestions:** For each unique out-of-scope observation reported by QA agents, first filter: **"Does this observation mean the implementation fails to meet acceptance criteria or should it block the ticket from proceeding?"** If yes → it belongs in QA notes (which determine pass/fail), not in suggestions. If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="qa". These accumulate and are surfaced in the PR description.
+**Suggestions:** For each unique out-of-scope observation reported by QA agents, first filter: **"Does this observation mean the implementation fails to meet acceptance criteria or should it block the ticket from proceeding?"** If yes → it belongs in QA notes (which determine pass/fail), not in suggestions. If no → it is a purely informational, out-of-scope observation — call `prd-system_addSuggestion` with source="qa" (include `subtaskId` if this is a subtask). These accumulate and are surfaced in the PR description.
 
 ### Step 4: Consolidate QA Results
 
 Collect all QA agent reports. Determine if the implementation passes QA:
 - All agents confirm all acceptance criteria are met and no deviations were flagged → Pass
 - Any agent reports unmet criteria, critical issues, or a flagged deviation → Fail
+
+### Step 4b: Collect QA Evidence
+
+For each passing acceptance criterion, collect evidence where practical:
+- Use browser tools for screenshots of working features
+- Use CLI for API response evidence (curl output)
+- Use test runner output for passing test evidence
+- Use file contents for migration or build output
+
+Call `prd-system_addEvidence` with `source="qa"` for each piece.
+
+Evidence will be formatted in the PR body per the PR creation skill's
+formatting rules. See `prd-pr-creation/SKILL.md` Step 2 for details.
+
+Optional but recommended — skip if evidence collection would be
+disproportionate to the ticket's scope.
 
 ### Step 5: Act on Results
 
@@ -91,5 +107,5 @@ If QA agents disagree on whether a critical issue exists, dispatch an additional
 - **Skipping regression checks.** Verify that existing functionality still works after the changes.
 - **Not testing the acceptance criteria explicitly.** Each criterion should be tested as a separate assertion.
 - **Overlooking non-functional requirements.** Consider performance, security, and accessibility if relevant.
-- **Mixing suggestions into QA notes.** If an out-of-scope observation means the implementation fails acceptance criteria, include it in QA notes (pass/fail). Only if it's purely informational and non-blocking should it be captured as a suggestion via `prd-system_addSuggestion`.
+- **Mixing suggestions into QA notes.** If an out-of-scope observation means the implementation fails acceptance criteria, include it in QA notes (pass/fail). Only if it's purely informational and non-blocking should it be captured as a suggestion via `prd-system_addSuggestion` (include `subtaskId` if this is a subtask).
 - **Skipping deviation validation.** If the ticket has deviations, QA must validate each one via `prd-system_qaDeviation`. A flagged deviation is a QA failure — don't let it slip through.

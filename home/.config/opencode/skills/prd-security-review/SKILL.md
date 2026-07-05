@@ -56,10 +56,11 @@ Agents report back on:
 - Any recorded deviations — are they safe from a security perspective?
 - Out-of-scope observations (pre-existing security issues, unrelated vulns)
 - Log/evidence paths — where to find raw tool output on disk, if saved
+- Save security scan output as evidence — call `prd-system_addEvidence` with `source="security"` for: dependency audit JSON output, secret scan results, SAST tool output, or manual review notes. Evidence type: `security_scan`.
 
 ### Step 4: Record Suggestions
 
-For unique out-of-scope findings: if purely informational and non-blocking → `prd-system_addSuggestion` with `source="security"`. If the finding affects whether the implementation is secure enough to proceed → include in security notes (determines pass/fail).
+For unique out-of-scope findings: if purely informational and non-blocking → `prd-system_addSuggestion` with `source="security"` (include `subtaskId` if this is a subtask). If the finding affects whether the implementation is secure enough to proceed → include in security notes (determines pass/fail).
 
 ### Step 5: Consolidate Findings
 
@@ -102,4 +103,4 @@ If security agents disagree on whether a critical finding is valid, dispatch an 
 - **Only scanning with automated tools.** Automated scanners miss logic flaws. Manual review of auth, authorization, and data handling is essential.
 - **Treating all secrets the same.** A hardcoded test API key is less critical than a production database password. Prioritize based on blast radius.
 - **Ignoring the deviation list.** Deviations from the plan may have introduced security gaps. Each deviation must be reviewed for security implications.
-- **Mixing suggestions into security notes.** If an out-of-scope observation is non-blocking and purely informational, use `prd-system_addSuggestion` with `source="security"`. Only include blocking security findings in `securityNotes`.
+- **Mixing suggestions into security notes.** If an out-of-scope observation is non-blocking and purely informational, use `prd-system_addSuggestion` with `source="security"` (include `subtaskId` if this is a subtask). Only include blocking security findings in `securityNotes`.

@@ -31,6 +31,10 @@ Dispatch `validation` agents with the full ticket details to perform a final che
 - Was the PR created and merged? (For subtasks with no PR, verify the git merge was completed instead)
 - Are all acceptance criteria met?
 - Is there any unfinished work remaining?
+- Check if evidence exists for implementation and QA stages. Note any
+  gaps (e.g., "No QA evidence collected — ticket passed without evidence")
+  in the report. **Do not block finalization** — evidence gaps are advisory
+  only at this stage.
 
 Agents should explore the repo to verify these points.
 
