@@ -4,6 +4,8 @@ const { spawn } = require("child_process");
 
 const PRDS_DIR = path.join(__dirname, "prds");
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 function runAsync(cmd) {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, [], { stdio: "inherit", shell: true });
@@ -14,6 +16,8 @@ function runAsync(cmd) {
     child.on("error", reject);
   });
 }
+
+const ticketStatusTracker = new Map();
 
 async function findAndProcess(repoName) {
   let files;
@@ -38,15 +42,54 @@ async function findAndProcess(repoName) {
     return null;
   }
 
-  for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  const prds = candidates.filter(
+    (prd) => !prd.status.toLowerCase().includes("human"),
+  );
+
+  if (prds.length === 0) {
+    return null;
   }
 
-  for (const prd of candidates) {
-    if (!prd.status.toLowerCase().includes("human")) {
+  for (let i = prds.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [prds[i], prds[j]] = [prds[j], prds[i]];
+  }
+
+  // Get the last processed ticket ID from the tracker
+  for (const prd of prds) {
+    const lastStatus = ticketStatusTracker.get(prd.id)?.status;
+    if (lastStatus !== prd.status) {
+      ticketStatusTracker.set(prd.id, {
+        status: prd.status,
+        retryCount: 0,
+      });
       return prd;
     }
+  }
+
+  // Weighted random selection prioritizing tickets with lowest retry count
+  const weights = prds.map((prd) => {
+    const tracker = ticketStatusTracker.get(prd.id);
+    const weight = 1 / ((tracker?.retryCount ?? 0) + 1);
+    return { prd, weight, tracker };
+  });
+  const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+  let r = Math.random() * totalWeight;
+  for (const { prd, weight, tracker } of weights) {
+    r -= weight;
+    if (r > 0) continue;
+
+    if (!tracker) {
+      ticketStatusTracker.set(prd.id, { status: prd.status, retryCount: 0 });
+      return prd;
+    }
+
+    const seconds = Math.min(Math.pow(4, tracker.retryCount), 600);
+    console.log(`[ralph] ${prd.id} cooling down — skipping for ${seconds}s (retry #${tracker.retryCount})`);
+    await sleep(seconds * 1000);
+    tracker.retryCount += 1;
+    ticketStatusTracker.set(prd.id, tracker);
+    return prd;
   }
 
   return null;
@@ -59,11 +102,18 @@ async function main() {
     process.exit(1);
   }
 
-  let processed = 0;
+  let heartbeatCount = 0;
   while (true) {
     const prd = await findAndProcess(repoName);
+
     if (!prd) {
-      break;
+      const seconds = 5;
+      heartbeatCount++;
+      if (heartbeatCount % 6 === 0) {
+        console.log(`[ralph] Alive — waiting for tickets...`);
+      }
+      await sleep(seconds * 1000);
+      continue;
     }
 
     const cmd = `opencode --agent "Scrum Master" run "process ticket -- id - ${prd.id} repo - ${repoName}" --pure true`;
@@ -74,16 +124,9 @@ async function main() {
 
     try {
       await runAsync(cmd);
-      processed++;
     } catch (err) {
       console.error(`Command failed for ${prd.id}: ${err.message}`);
     }
-  }
-
-  if (processed === 0) {
-    console.log(`No non-human PRDs found for "${repoName}"`);
-  } else {
-    console.log(`\nDone. Processed ${processed} ticket(s) for "${repoName}".`);
   }
 }
 
