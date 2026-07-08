@@ -70,6 +70,8 @@ type Ticket = {
   blockedReason?: string;
   previousStatus?: string;
   evidence?: Evidence[];
+  planIteration?: number;
+  implementationRetryCount?: number;
 };
 
 const EXT_MAP: Record<string, string> = {
@@ -172,6 +174,7 @@ export const create = tool({
       .string()
       .min(2)
       .max(20)
+      .optional()
       .describe("Name of the JIRA ticket - if provided"),
     description: tool.schema
       .string()
@@ -192,7 +195,7 @@ export const create = tool({
       .optional()
       .describe("Priority: P0, P1, P2, or P3 (defaults to P2)"),
   },
-  async execute({ gitRepo, name, description, id, targetBranch, priority }) {
+  async execute({ gitRepo, name, description, id, targetBranch, priority, jiraTicket }) {
     const existingPrd = id ? getPrd(id, gitRepo) : null;
     if (existingPrd) {
       return `Ticket with ID ${id} already exists. Please use a different ID or omit the ID to generate a new one.`;
@@ -208,6 +211,7 @@ export const create = tool({
       status: "Needs Refinement",
       priority: priority || "P2",
       createdAt: new Date().toISOString(),
+      jiraTicket,
       planIteration: 0,
       targetBranch,
       featureBranch: "",
@@ -666,6 +670,8 @@ export const createSubtask = tool({
       targetBranch: prd.featureBranch,
       featureBranch: "",
       worktreeDir: "",
+      planIteration: 0,
+      implementationRetryCount: 0,
     };
 
     if (!prd.subtasks) {
@@ -1003,6 +1009,7 @@ export const finalizePlanning = tool({
         return `Subtask ${subtaskId} targetBranch="${ticket.targetBranch}" does not match parent's featureBranch="${prd.featureBranch}". Re-run assignWorkspace on the subtask to fix.`;
       }
       ticket.status = "Ready Plan Review";
+      ticket.planIteration = (ticket.planIteration || 0) + 1;
     } else {
       if (!prd.plan) {
         return `Ticket with ID ${id} cannot be finalized. Please ensure the plan is saved before finalizing.`;
@@ -1130,8 +1137,7 @@ export const finishPlanReview = tool({
     const hasBlockingIssues =
       ticket.blockingIssues && ticket.blockingIssues.length > 0;
     const hasIssues = ticket.planIssues && ticket.planIssues.length > 0;
-    // Subtasks don't track planIteration — default to 0 so they never force-through
-    const iteration = subtaskId ? 0 : (prd.planIteration || 0);
+    const iteration = subtaskId ? (ticket.planIteration || 0) : (prd.planIteration || 0);
 
     // Blocking issues + max iterations reached → escalate to human
     if (hasBlockingIssues && iteration > 6) {
@@ -1149,8 +1155,8 @@ export const finishPlanReview = tool({
       return `${label} marked as Needs Plan Updating (${ticket.blockingIssues?.length} blocking issues to resolve).`;
     }
 
-    // No blocking issues and past iteration 3 → force through
-    if (iteration > 3) {
+    // No blocking issues and past iteration 3 → force through (subtasks never force-through)
+    if (!subtaskId && iteration > 3) {
       const targetStatus = subtaskId
         ? "Needs Implementing"
         : hasSubtasks(prd)
@@ -1279,10 +1285,21 @@ export const reviewImplementation = tool({
     }
 
     ticket.reviewComments = reviewComments;
-    ticket.status = passed ? "Needs Security Review" : "Needs Implementation Update";
+    if (passed) {
+      ticket.status = "Needs Security Review";
+    } else {
+      ticket.implementationRetryCount = (ticket.implementationRetryCount || 0) + 1;
+      if (ticket.implementationRetryCount > 3) {
+        ticket.status = "Needs Human Clarification";
+        updatePrd(prd, gitRepo);
+        const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+        return `${label} escalated to Needs Human Clarification (implementation rejected ${ticket.implementationRetryCount} times across review/QA/security).`;
+      }
+      ticket.status = "Needs Implementation Update";
+    }
     updatePrd(prd, gitRepo);
 
-    const outcome = passed ? "Needs Security Review" : "Needs Implementation Update";
+    const outcome = ticket.status;
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
     return `${label} reviewed and marked as ${outcome}.`;
   },
@@ -1327,13 +1344,19 @@ export const completeQA = tool({
 
     ticket.qaNotes = qaNotes;
     if (passed) {
+      ticket.implementationRetryCount = 0;
       if (subtaskId && !prd.subtasksNeedPrs) {
         ticket.status = "Needs Git Merge";
       } else {
         ticket.status = "Needs PR";
       }
     } else {
-      ticket.status = "Needs Implementation Update";
+      ticket.implementationRetryCount = (ticket.implementationRetryCount || 0) + 1;
+      if (ticket.implementationRetryCount > 3) {
+        ticket.status = "Needs Human Clarification";
+      } else {
+        ticket.status = "Needs Implementation Update";
+      }
     }
     updatePrd(prd, gitRepo);
 
@@ -1381,10 +1404,19 @@ export const completeSecurityReview = tool({
     }
 
     ticket.securityNotes = securityNotes;
-    ticket.status = passed ? "Needs QA" : "Needs Implementation Update";
+    if (passed) {
+      ticket.status = "Needs QA";
+    } else {
+      ticket.implementationRetryCount = (ticket.implementationRetryCount || 0) + 1;
+      if (ticket.implementationRetryCount > 3) {
+        ticket.status = "Needs Human Clarification";
+      } else {
+        ticket.status = "Needs Implementation Update";
+      }
+    }
     updatePrd(prd, gitRepo);
 
-    const outcome = passed ? "Needs QA" : "Needs Implementation Update";
+    const outcome = ticket.status;
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
     return `${label} security review completed and marked as ${outcome}.`;
   },
@@ -1481,6 +1513,8 @@ export const finalizeReapproach = tool({
     ticket.planIssues = undefined;
     ticket.blockingIssues = undefined;
     ticket.evidence = [];
+    ticket.planIteration = 0;
+    ticket.implementationRetryCount = 0;
     if (!subtaskId) {
       prd.planIteration = 0;
     }
