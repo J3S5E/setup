@@ -38,6 +38,7 @@ For each pending subtask, advance it one stage at a time. Do not skip stages. Fo
 | "Needs Plan Updating" | `prd-updating-plans` |
 | "Ready Plan Review" | `prd-reviewing-plan` — runs plan review on the subtask. If it hits **"Needs Plan Updating"**, handle that first (via `prd-updating-plans`), then re-run plan review. Once the subtask reaches **"Needs Implementing"**, proceed. |
 | "Needs Implementing" / "Needs Implementation Update" | `prd-implementing-tickets` — implements the subtask |
+| "Needs Validation" | (auto — Ralph runs validation commands) |
 | "Needs Review" | `prd-reviewing-implementation` — reviews the subtask implementation |
 | "Needs Security Review" | `prd-security-review` — runs security analysis on the subtask |
 | "Needs QA" | `prd-qa-tickets` — runs QA on the subtask |
@@ -48,6 +49,8 @@ For each pending subtask, advance it one stage at a time. Do not skip stages. Fo
 | "Needs Cleanup" | `prd-cleanup-tickets` — cleans up worktree and branch, marks Done |
 | "Blocked" | `prd-blocked-tickets` — check if blocker resolved |
 | "Needs Reapproach" | `prd-reapproach-tickets` — revert and route back to replanning |
+
+> **Note:** After `completeImplementation`, the ticket/subtask enters "Needs Validation", which is automatically handled by Ralph (running validation commands from `validation-commands.json`) before the ticket reaches "Needs Review".
 
 **Important:** When calling lifecycle tools for a subtask, always pass both `id` (parent ticket ID) and `subtaskId` (subtask ID):
 - `prd-system_completeImplementation(id=parentId, gitRepo, subtaskId=subtaskId, branch=subtaskFeatureBranch)`
@@ -77,7 +80,7 @@ Do not process the ticket any further, only when asked to process the ticket aga
 
 ### Escalation
 
-If any subtask reaches "Needs Human Clarification" or "Needs Human *" status during processing, stop and report the issue. Do not attempt to resolve human escalations automatically.
+If any subtask is escalated to human attention (via `prd-system_escalate`) during processing, stop and report the issue. Do not attempt to resolve human escalations automatically.
 
 If a subtask enters "Needs Plan Updating" or "Needs Implementation Update", handle the update stage, then continue the lifecycle from where it left off.
 

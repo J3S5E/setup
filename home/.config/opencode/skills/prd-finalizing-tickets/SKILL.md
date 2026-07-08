@@ -45,7 +45,7 @@ If all checks pass:
 
 If there are outstanding issues:
 - Report what needs to be resolved and do not finalize
-- If issues are critical, use `prd-system_escalate` to mark the ticket as "Needs Human Clarification"
+- If issues are critical, use `prd-system_escalate` to flag the ticket for human attention
 
 ### Step 4: Report
 

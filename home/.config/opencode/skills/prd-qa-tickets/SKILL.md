@@ -86,7 +86,7 @@ Do not process the ticket any further, only when asked to process the ticket aga
 
 ### Escalation
 
-If QA agents disagree on whether a critical issue exists, dispatch an additional agent as a tiebreaker. If consensus cannot be reached after 3 attempts, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool.
+If QA agents disagree on whether a critical issue exists, dispatch an additional agent as a tiebreaker. If consensus cannot be reached after 3 attempts, call `prd-system_escalate` to flag the ticket for human attention.
 
 ## Quick Reference
 
@@ -99,7 +99,7 @@ If QA agents disagree on whether a critical issue exists, dispatch an additional
 | 4 | Consolidate results | All pass + no flagged deviations → proceed; Any fail → fail |
 | 5a | Pass → | `completeQA(passed: true)` → "Needs PR" (parent/subtasksNeedPrs=true) or "Needs Git Merge" (subtasksNeedPrs=false) |
 | 5b | Fail → | `completeQA(passed: false, notes)` → "Needs Implementation Update" |
-| Escalate | 3 failed consensus attempts | `escalate` → "Needs Human Clarification" |
+| Escalate | 3 failed consensus attempts | `escalate` → [status-dependent] |
 
 ## Common Mistakes
 

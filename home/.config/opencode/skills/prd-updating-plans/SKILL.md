@@ -69,7 +69,7 @@ If all agents confirm all issues are resolved — proceed to Step 6.
 
 If any agent reports unresolved issues, collect the feedback and dispatch a third agent as a tiebreaker. If the majority still finds unresolved issues, go back to Step 3 with the remaining issues clearly scoped.
 
-If you reached Step 5 three times and issues remain unresolved, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool. Do not proceed to Step 6 — report that the ticket has been escalated.
+If you reached Step 5 three times and issues remain unresolved, call `prd-system_escalate` to flag the ticket for human attention. Do not proceed to Step 6 — report that the ticket has been escalated.
 
 ### Step 6: Finalize
 
@@ -89,7 +89,7 @@ Do not process the ticket any further, only when asked to process the ticket aga
 | 4 | Save updated plan | `savePlan` on ticket + each subtask |
 | 5 | Verify the fix | Dispatch `validation` agents; confirm all issues resolved |
 | 6 | Finalize | `finalizePlanning` → "Ready Plan Review" |
-| Escalate | 3 failed cycles | `escalate` → "Needs Human Plan creation" / "Needs Human Plan finalization" |
+| Escalate | 3 failed cycles | `escalate` → [status-dependent] |
 
 ## Common Mistakes
 

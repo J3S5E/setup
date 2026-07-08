@@ -5,7 +5,7 @@ import * as path from "path";
 type Agent = Record<string, string>;
 
 function getAgentsFolder(): string {
-  return "C:\\GIT\\setup\\home\\.config\\opencode\\agents";
+  return path.resolve(__dirname, "..", "agents");
 }
 
 function parseFrontmatter(content: string): Record<string, string> {

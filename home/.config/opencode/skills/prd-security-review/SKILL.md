@@ -82,7 +82,7 @@ Do not process the ticket any further, only when asked to process the ticket aga
 
 ### Escalation
 
-If security agents disagree on whether a critical finding is valid, dispatch an additional agent as a tiebreaker. If consensus cannot be reached after 3 attempts, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool.
+If security agents disagree on whether a critical finding is valid, dispatch an additional agent as a tiebreaker. If consensus cannot be reached after 3 attempts, call `prd-system_escalate` to flag the ticket for human attention.
 
 ## Quick Reference
 
@@ -95,7 +95,7 @@ If security agents disagree on whether a critical finding is valid, dispatch an 
 | 5 | Consolidate findings | All pass + no critical findings → proceed; Any fail → fail |
 | 6a | Pass → | `completeSecurityReview(passed: true)` → "Needs QA" |
 | 6b | Fail → | `completeSecurityReview(passed: false, notes)` → "Needs Implementation Update" |
-| Escalate | 3 failed consensus attempts | `escalate` → "Needs Human Clarification" |
+| Escalate | 3 failed consensus attempts | `escalate` → [status-dependent] |
 
 ## Common Mistakes
 

@@ -21,6 +21,8 @@ Updating an implementation addresses issues found during code review or QA. The 
 
 Get the latest ticket information using `prd-system_getTicket`. Pay close attention to the `reviewComments` or `qaNotes` fields — these contain the issues that the update must address. Also review the current plan, acceptance criteria, and implementation.
 
+If `reviewComments` contain references to "See evidence for details", call `prd-system_getEvidence` to read the full validation output before dispatching fix agents.
+
 ### Step 2: Understand the Issues
 
 Use the `Hand of the King` agent to recommend an agent appropriate for understanding these review comments or QA notes, then dispatch them with the full ticket details and ask them to:
@@ -60,13 +62,13 @@ If all agents confirm all issues are resolved — proceed to Step 5.
 
 If any agent reports unresolved issues, collect the feedback and dispatch a third agent as a tiebreaker. If the majority still finds unresolved issues, go back to Step 3 with the remaining issues clearly scoped.
 
-If you reached Step 4 three times and issues remain unresolved, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool. Do not proceed to Step 5 — report that the ticket has been escalated.
+If you reached Step 4 three times and issues remain unresolved, call `prd-system_escalate` to flag the ticket for human attention. Do not proceed to Step 5 — report that the ticket has been escalated.
 
 ### Step 5: Mark Complete
 
-Once all issues are verified as resolved, call `prd-system_completeImplementation` to mark the ticket as "Needs Review" for a fresh review.
+Once all issues are verified as resolved, call `prd-system_completeImplementation` to mark the ticket as "Needs Validation".
 
-Report back that the implementation has been updated and the ticket is ready for re-review.
+Report back that the implementation has been updated and the ticket has been marked as Needs Validation.
 
 Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
 
@@ -78,8 +80,8 @@ Do not process the ticket any further, only when asked to process the ticket aga
 | 2 | Understand the issues | Single agent confirms scope of changes |
 | 3 | Fix the implementation | SM discretion (default 1 agent, increase for complex fixes) |
 | 4 | Verify the fixes | Dispatch `validation` agents; confirm all issues resolved |
-| 5 | Mark complete | `completeImplementation` → "Needs Review" |
-| Escalate | 3 failed cycles | `escalate` → "Needs Human Clarification" |
+| 5 | Mark complete | `completeImplementation` → "Needs Validation" |
+| Escalate | 3 failed cycles | `escalate` → [status-dependent] |
 
 ## Common Mistakes
 

@@ -86,7 +86,7 @@ Do not process the ticket any further, only when asked to process the ticket aga
 
 ### Escalation
 
-If you reached Step 5 three times and agents are still unable to reach consensus on whether issues are valid, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool. Do not proceed further — report that the ticket has been escalated.
+If you reached Step 5 three times and agents are still unable to reach consensus on whether issues are valid, call `prd-system_escalate` to flag the ticket for human attention. Do not proceed further — report that the ticket has been escalated.
 
 ## Quick Reference
 
@@ -98,7 +98,7 @@ If you reached Step 5 three times and agents are still unable to reach consensus
 | 4 | Consolidate | Aggregate and deduplicate findings |
 | 5 | Validate & categorize | `validation` agents confirm validity + classify blocking vs non-blocking; tiebreaker if split |
 | 6 | Act on feedback | `addPlanIssues(issues, blockingIssues)` + `finishPlanReview` (see decision table above) |
-| Escalate | 3 failed validation cycles | `escalate` → "Needs Human Plan Review" |
+| Escalate | 3 failed validation cycles | `escalate` → [status-dependent] |
 
 ## Common Mistakes
 

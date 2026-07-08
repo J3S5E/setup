@@ -90,8 +90,24 @@ function extForContentType(contentType: string): string {
 function assertPathWithinPrds(resolved: string): void {
   const prds = path.resolve(getPrdsFolder());
   const target = path.resolve(resolved);
-  if (!target.startsWith(prds)) {
+  if (!target.startsWith(prds + path.sep) && target !== prds) {
     throw new Error(`Path traversal denied: ${target} is outside ${prds}`);
+  }
+}
+
+function validateTicketId(id: string): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(id)) {
+    throw new Error(
+      `Invalid ticket ID: "${id}". Must contain only alphanumeric characters, hyphens, and underscores.`,
+    );
+  }
+}
+
+function validateGitRepo(gitRepo: string): void {
+  if (!/^[a-zA-Z0-9_-]+$/.test(gitRepo)) {
+    throw new Error(
+      `Invalid git repo: "${gitRepo}". Must contain only alphanumeric characters, hyphens, and underscores.`,
+    );
   }
 }
 
@@ -100,10 +116,14 @@ function hasSubtasks(prd: Prd): boolean {
 }
 
 function getPrdsFolder(): string {
-  return "C:\\GIT\\setup\\home\\.config\\opencode\\prds";
+  // ralph.js at the same project level uses path.join(__dirname, "prds") successfully
+  // This tool lives in the tools/ subdirectory, so we go up one level to reach prds/
+  return path.resolve(__dirname, "..", "prds");
 }
 
 function getPrd(id: string, gitRepo: string): Prd | null {
+  validateTicketId(id);
+  validateGitRepo(gitRepo);
   const prdsFolder = getPrdsFolder();
   const prdPath = path.join(prdsFolder, `${gitRepo}__${id}.json`);
   if (!fs.existsSync(prdPath)) {
@@ -114,6 +134,8 @@ function getPrd(id: string, gitRepo: string): Prd | null {
 }
 
 function updatePrd(prd: Prd, gitRepo: string): void {
+  validateTicketId(prd.id);
+  validateGitRepo(gitRepo);
   const prdsFolder = getPrdsFolder();
   const prdPath = path.join(prdsFolder, `${gitRepo}__${prd.id}.json`);
   fs.writeFileSync(prdPath, JSON.stringify(prd, null, 2), "utf-8");
@@ -227,65 +249,80 @@ export const escalate = tool({
       .describe(
         "The name of the Git repository to filter PRDs by. If not provided, lists all PRDs.",
       ),
+    subtaskId: tool.schema
+      .string()
+      .optional()
+      .describe("Id of the subtask to escalate"),
   },
-  async execute({ id, gitRepo }) {
-    const prdData = getPrd(id, gitRepo);
+  async execute({ id, gitRepo, subtaskId }) {
+    const prd = getPrd(id, gitRepo);
 
-    if (!prdData) {
+    if (!prd) {
       return `Ticket with ID ${id} not found.`;
     }
 
-    const status = prdData.status;
+    const ticket = subtaskId
+      ? prd.subtasks?.find((subtask: any) => subtask.id === subtaskId)
+      : prd;
+    if (!ticket) {
+      return subtaskId
+        ? `Subtask with ID ${subtaskId} not found in ticket with ID ${id}.`
+        : `Ticket with ID ${id} not found.`;
+    }
+
+    const status = ticket.status;
     const terminalStatuses = ["Done", "Cancelled"];
     if (terminalStatuses.includes(status)) {
-      return `Ticket with ID ${id} is in a terminal state (${status}) and cannot be escalated.`;
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is in a terminal state (${status}) and cannot be escalated.`;
     }
 
-    if (status === "Needs Refinement") {
-      if (
-        prdData.acceptanceCriterias &&
-        prdData.acceptanceCriterias.length > 0
-      ) {
-        prdData.status = "Needs Human Refinement finalization";
-      } else {
-        prdData.status = "Needs Human Title and Description refinement";
-      }
+    if (status === "Needs Human Clarification") {
+      const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+      return `${label} is already escalated for human clarification.`;
+    } else if (status === "Needs Refinement") {
+      ticket.status = "Needs Human Clarification";
     } else if (status === "Needs Plan" || status === "Needs Plan Updating") {
-      prdData.status = prdData.plan
-        ? "Needs Human Plan finalization"
-        : "Needs Human Plan creation";
+      ticket.status = "Needs Human Clarification";
     } else if (status === "Ready Plan Review") {
-      prdData.status = "Needs Human Plan Review";
+      ticket.status = "Needs Human Clarification";
     } else if (status === "Needs Subtickets Processed") {
-      prdData.status = "Needs Human Subtickets";
+      ticket.status = "Needs Human Subtickets";
+    } else if (status === "Needs Validation") {
+      // Automated validation couldn't run or was bypassed — route to human for manual review and decision
+      ticket.status = "Needs Human Implementation";
     } else if (status === "Needs Implementing" || status === "Needs Implementation Update") {
-      prdData.status = "Needs Human Implementation";
+      ticket.status = "Needs Human Clarification";
     } else if (status === "Needs Review") {
-      prdData.status = "Needs Human Review";
+      ticket.status = "Needs Human Clarification";
     } else if (status === "Needs Security Review") {
-      prdData.status = "Needs Human Security Review";
+      ticket.status = "Needs Human Clarification";
     } else if (status === "Needs QA") {
-      prdData.status = "Needs Human QA";
+      ticket.status = "Needs Human Clarification";
     } else if (status === "Needs PR") {
-      prdData.status = "Needs Human PR";
+      ticket.status = "Needs Human PR";
     } else if (status === "Needs PR Maintenance") {
-      prdData.status = "Needs Human PR Maintenance";
+      ticket.status = "Needs Human PR Maintenance";
     } else if (status === "Awaiting Human Merge") {
-      prdData.status = "Needs Human Merge Clarification";
+      ticket.status = "Needs Human Merge Clarification";
     } else if (status === "Needs Git Merge") {
-      prdData.status = "Needs Human Git Merge";
+      ticket.status = "Needs Human Git Merge";
     } else if (status === "Needs Reapproach") {
-      prdData.status = "Needs Human Reapproach";
+      ticket.status = "Needs Human Reapproach";
     } else if (status === "Blocked") {
-      prdData.status = "Needs Human Unblock";
+      ticket.status = "Needs Human Unblock";
     } else if (status === "Needs Finalizing") {
-      prdData.status = "Needs Human Finalization";
+      ticket.status = "Needs Human Clarification";
     } else if (status === "Needs Cleanup") {
-      prdData.status = "Needs Human Cleanup";
+      ticket.status = "Needs Human Cleanup";
+    } else {
+      ticket.status = "Needs Human Clarification";
     }
 
-    updatePrd(prdData, gitRepo);
-    return `Ticket with ID ${id} escalated to ${prdData.status}.`;
+    updatePrd(prd, gitRepo);
+
+    const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
+    return `${label} escalated to ${ticket.status}.`;
   },
 });
 
@@ -700,6 +737,7 @@ export const assignWorkspace = tool({
       .string()
       .min(1)
       .max(500)
+      .regex(/^[a-zA-Z0-9_\/\\\.-]+$/, "Must contain only alphanumeric, underscore, hyphen, dot, forward-slash and backslash characters")
       .describe("Path to the git worktree directory"),
   },
   async execute({ id, gitRepo, subtaskId, featureBranch, worktreeDir }) {
@@ -1149,7 +1187,7 @@ export const finishPlanReview = tool({
 
 export const completeImplementation = tool({
   description:
-    "Marks implementation as complete, transitioning the ticket to Needs Review. Accepts optional branch name. If subtaskId is provided, marks the subtask as complete.",
+    "Marks implementation as complete, transitioning the ticket to Needs Validation (Ralph runs external validation before it reaches Needs Review). Accepts optional branch name. If subtaskId is provided, marks the subtask as complete.",
   args: {
     id: tool.schema.string().describe("Id of the ticket"),
     gitRepo: tool.schema.string().describe("The Git repository name"),
@@ -1193,11 +1231,11 @@ export const completeImplementation = tool({
     ticket.reviewComments = [];
     ticket.securityNotes = [];
     ticket.qaNotes = [];
-    ticket.status = "Needs Review";
+    ticket.status = "Needs Validation";
     updatePrd(prd, gitRepo);
 
     const label = subtaskId ? `Subtask ${subtaskId}` : `Ticket ${id}`;
-    return `${label} marked as Needs Review.`;
+    return `${label} marked as Needs Validation.`;
   },
 });
 

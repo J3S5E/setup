@@ -8,7 +8,7 @@ user-invocable: false
 
 ## Overview
 
-Reviewing an implementation validates that the code changes satisfy the ticket's acceptance criteria, follow the plan, and meet quality standards. This skill dispatches multiple independent reviewers, consolidates feedback, and determines pass or fail.
+Reviewing an implementation validates that the code changes satisfy the ticket's acceptance criteria, follow the plan, and meet quality standards. Tickets arrive at "Needs Review" after passing through the automated validation stage (Ralph runs validation commands from `validation-commands.json`), so the implementation should already have basic checks passing. This skill dispatches multiple independent reviewers, consolidates feedback, and determines pass or fail.
 
 ## When to use this skill
 
@@ -92,7 +92,7 @@ Do not process the ticket any further, only when asked to process the ticket aga
 
 ### Escalation
 
-If you reached Step 5 three times and agents are still unable to reach consensus on whether issues are valid, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool. Do not proceed further — report that the ticket has been escalated.
+If you reached Step 5 three times and agents are still unable to reach consensus on whether issues are valid, call `prd-system_escalate` to flag the ticket for human attention. Do not proceed further — report that the ticket has been escalated.
 
 ## Quick Reference
 
@@ -106,7 +106,7 @@ If you reached Step 5 three times and agents are still unable to reach consensus
 | 5 | Validate issues | `validation` agents confirm validity; tiebreaker if split |
 | 6a | No issues + all deviations accepted → | `reviewImplementation(passed: true)` → "Needs Security Review" |
 | 6b | Valid issues or rejected deviation → | `reviewImplementation(passed: false, comments)` → "Needs Implementation Update" |
-| Escalate | 3 failed validation cycles | `escalate` → "Needs Human Clarification" |
+| Escalate | 3 failed validation cycles | `escalate` → [status-dependent] |
 
 ## Common Mistakes
 

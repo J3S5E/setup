@@ -1,6 +1,6 @@
 ---
 name: prd-implementing-tickets
-description: Use when a ticket is marked as "Needs Implementing" or "Needs Implementation Update" in the PRD system (not when marked as "Needs Subtickets Processed") — dispatches agents to implement the ticket against acceptance criteria.
+description: Use when a ticket is marked as "Needs Implementing" in the PRD system (not when marked as "Needs Subtickets Processed") — dispatches agents to implement the ticket against acceptance criteria.
 user-invocable: false
 ---
 
@@ -15,7 +15,8 @@ Subtasks are implemented first — each in its own feature branch — then merge
 ## When to use this skill
 
 - You are the scrummaster or implementer
-- The ticket you have has the status "Needs Implementing" or "Needs Implementation Update"
+- The ticket you have has the status "Needs Implementing"
+- Note: tickets with status "Needs Implementation Update" are handled by the `prd-updating-implementation` skill instead
 - Note: tickets with status "Needs Subtickets Processed" are handled by the `prd-processing-subtickets` skill instead — do not process them here
 
 ## Steps to follow when implementing tickets:
@@ -56,7 +57,7 @@ Dispatch `alignment` agents to independently report their understanding of:
 - What the implementation plan says (ordered steps, files to modify/create)
 - What tech notes or risks were identified during planning
 
-If agents return with different interpretations, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool. Do not proceed to Step 2 instead report back that you cannot proceed yet as the ticket has been escalated.
+If agents return with different interpretations, call `prd-system_escalate` to flag the ticket for human attention. Do not proceed to Step 2 instead report back that you cannot proceed yet as the ticket has been escalated.
 
 If agents return with aligned understanding, proceed to Step 2.
 
@@ -118,11 +119,11 @@ ticket's nature (e.g., pure refactoring with no observable output).
 
 ### Step 4: Mark Implementation Complete
 
-Once all verification passes, call `prd-system_completeImplementation` with the ticket's `featureBranch` as the branch name to mark the ticket as "Needs Review".
+Once all verification passes, call `prd-system_completeImplementation` with the ticket's `featureBranch` as the branch name to mark the ticket as "Needs Validation".
 
 The ticket's `featureBranch` will later be merged into its `targetBranch` (e.g., `main` for parent tickets, or the parent's `featureBranch` for subtasks) during the PR stage.
 
-Report back that the implementation is complete and the ticket is ready for review.
+Report back that the implementation is complete and the ticket has been marked as Needs Validation.
 
 Do not process the ticket any further, only when asked to process the ticket again would it be worked on further.
 
@@ -134,7 +135,7 @@ Do not process the ticket any further, only when asked to process the ticket aga
 | 1 | Review ticket and plan | Dispatch `alignment` agents; check featureBranch/worktreeDir |
 | 2 | Implement the ticket | SM discretion (default 1 agent, increase for complex tickets) |
 | 3 | Verify against acceptance criteria | Dispatch `validation` agents; verify all pass |
-| 4 | Mark complete | `completeImplementation` → "Needs Review" |
+| 4 | Mark complete | `completeImplementation` → "Needs Validation" |
 
 ## Common Mistakes
 

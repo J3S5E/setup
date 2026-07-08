@@ -23,7 +23,7 @@ Get the latest ticket information using `prd-system_getTicket` to pass to the ag
 
 **Purpose:** Ensure everyone understands the refined requirements before investing time in deep research.
 
-If agents return with different interpretations — mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool. Do not proceed to Step 2 instead report back that you cannot proceed yet as the ticket has been escalated.
+If agents return with different interpretations — call `prd-system_escalate` to flag the ticket for human attention. Do not proceed to Step 2 instead report back that you cannot proceed yet as the ticket has been escalated.
 
 If agents return with aligned understanding — proceed to Step 2.
 
@@ -175,7 +175,7 @@ Then continue through the steps again until the agents review the plan and provi
 
 When returning to Step 7 for re-review, present the plan as-is with no reference to previous feedback or what was fixed. The reviewing agents must evaluate the current plan fresh.
 
-If you reached this step 3 times and the agents are still providing feedback that requires changes to the plan, mark the ticket as "Needs Human Clarification" by using the `prd-system_escalate` tool. Do not proceed to Step 8 instead report back that you cannot proceed yet as the ticket has been escalated.
+If you reached this step 3 times and the agents are still providing feedback that requires changes to the plan, call `prd-system_escalate` to flag the ticket for human attention. Do not proceed to Step 8 instead report back that you cannot proceed yet as the ticket has been escalated.
 
 ### Step 9: Finalize
 

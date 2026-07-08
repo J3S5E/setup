@@ -79,6 +79,7 @@ When you get a ticket, check if it has a `subtasks` array in the returned JSON. 
 - Needs Plan Updating - prd-updating-plans
 - Needs Implementing - prd-implementing-tickets
 - Needs Implementation Update - prd-updating-implementation
+- Needs Validation   # No skill — Ralph handles validation automatically
 - Needs Review - prd-reviewing-implementation
 - Needs Security Review - prd-security-review
 - Needs QA - prd-qa-tickets

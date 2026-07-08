@@ -1,0 +1,29 @@
+{
+  "_note": "Copy this file to validation-commands.json and customize for your repos.",
+  "_note_repo_key": "Each top-level key is a repository name (gitRepo on the ticket).",
+  "_note_worktreeBase": "Optional base path to worktree directories. Defaults to process.cwd() if omitted.",
+  "_note_checks": "Array of checks. Each check has: name (string) and cmd (string).",
+  "_note_worktree_placeholder": "Use {worktree} in cmd — it is replaced with %WORKTREE_DIR% (Windows) or $WORKTREE_DIR (Unix).",
+  "_note_security": "Validation commands run with Ralph's privileges. Review command config during code review.",
+  "_note_platform_windows": "On Windows, commands run via cmd.exe. Use %VAR% for environment variables.",
+  "_note_platform_unix": "On Unix, commands run via sh/bash. Use $VAR for environment variables.",
+  "_note_example_repo": "Example configuration for 'my-repo' below. Replace with your actual repository names.",
+
+  "my-repo": {
+    "worktreeBase": "C:/path/to/worktrees",
+    "checks": [
+      {
+        "name": "Lint",
+        "cmd": "cd {worktree} && npm run lint -- --quiet"
+      },
+      {
+        "name": "Type Check",
+        "cmd": "cd {worktree} && npx tsc --noEmit"
+      },
+      {
+        "name": "Tests",
+        "cmd": "cd {worktree} && npm test -- --run"
+      }
+    ]
+  }
+}
