@@ -261,7 +261,13 @@ end
 
 local function change_window_border(window, pane)
 	local cwd_uri = pane:get_current_working_dir()
+	if cwd_uri == nil then
+		return
+	end
 	local cwd = cwd_uri.file_path
+	if cwd == nil then
+		return
+	end
 	local is_worktree_dir = cwd:find(".worktree") ~= nil
 	local is_worktree_workspace = window:active_workspace():find(".worktree") ~= nil
 	if is_worktree_dir then
@@ -493,6 +499,159 @@ local function goto_repo(win, pane)
 	end
 	local recents = get_recent("repos")
 	prompt_then_change(win, pane, recents, "repos")
+end
+
+-- Build wezterm SSH domains from ~/.ssh/config.
+-- multiplexing = "None" uses wezterm's embedded SSH client (same as `wezterm ssh`),
+-- no wezterm required on the remote host.
+local function build_ssh_domains()
+	local hosts = wezterm.enumerate_ssh_hosts()
+	local domains = {}
+	for host, cfg in pairs(hosts or {}) do
+		local entry = {
+			name = "SSH:" .. host,
+			remote_address = cfg.hostname or host,
+			multiplexing = "None",
+			assume_shell = "Posix",
+		}
+		if cfg.user then
+			entry.username = cfg.user
+		end
+		table.insert(domains, entry)
+	end
+	return domains
+end
+
+config.ssh_domains = build_ssh_domains()
+
+local function list_ssh_domains()
+	local domains = {}
+	for _, d in ipairs(config.ssh_domains or {}) do
+		table.insert(domains, d.name)
+	end
+	return domains
+end
+
+local function domain_name_from_target(target)
+	if target:find("^SSH:") then
+		return target
+	end
+	local host = target
+	if target:find("@") then
+		host = target:match("([^@]+)@(.+)")
+	end
+	if not host then
+		return target
+	end
+	return "SSH:" .. host
+end
+
+local function target_from_domain_name(domain_name)
+	return domain_name:gsub("^SSH:", "")
+end
+
+local function connect_ssh_tab(win, pane, domain_name)
+	debug("Spawning ssh tab in domain - " .. domain_name)
+	win:perform_action(
+		act.SpawnCommandInNewTab({
+			domain = { DomainName = domain_name },
+		}),
+		pane
+	)
+end
+
+local function ssh_config_path()
+	return Home .. fss .. ".ssh" .. fss .. "config"
+end
+
+local function append_ssh_host(target)
+	local user, host
+	if target:find("@") then
+		user, host = target:match("([^@]+)@(.+)")
+	else
+		host = target
+	end
+	if not host then
+		return false
+	end
+	local entry
+	if user then
+		entry = string.format("Host %s\n    HostName %s\n    User %s\n", host, host, user)
+	else
+		entry = string.format("Host %s\n    HostName %s\n", host, host)
+	end
+	local f = io.open(ssh_config_path(), "a")
+	if not f then
+		return false
+	end
+	f:write("\n" .. entry .. "\n")
+	f:close()
+	return true
+end
+
+local function connect_ssh(win, pane, target)
+	local domain = domain_name_from_target(target)
+	local domains = list_ssh_domains()
+	local is_domain = false
+	for _, d in ipairs(domains) do
+		if d == domain then
+			is_domain = true
+			break
+		end
+	end
+	if is_domain then
+		-- existing window, new tab, wezterm embedded SSH client
+		connect_ssh_tab(win, pane, domain)
+	else
+		-- ad-hoc target not in ~/.ssh/config: persist it, reload so wezterm
+		-- registers a domain for it. config reload is async; the new host
+		-- shows in the ALT+h picker after reload and connects via the
+		-- embedded ssh client from there. (Wezterm has no reload-completion
+		-- callback, so we can't auto-connect a brand-new host on first try.)
+		debug("Adding new ssh host to config - " .. target)
+		append_ssh_host(target)
+		win:perform_action(act.ReloadConfiguration(), pane)
+	end
+end
+
+local function open_ssh_session(win, pane)
+	local options = {}
+	for _, d in ipairs(config.ssh_domains or {}) do
+		local host = target_from_domain_name(d.name)
+		local label = d.username and (d.username .. "@" .. host) or host
+		table.insert(options, { label = label, id = d.name })
+	end
+	table.insert(options, {
+		label = "NEW SSH SESSION",
+		id = "new_ssh_session",
+	})
+	win:perform_action(
+		act.InputSelector({
+			title = "Choose an SSH session",
+			choices = options,
+			action = wezterm.action_callback(function(window, pane2, id)
+				if id == "new_ssh_session" then
+					window:perform_action(
+						act.PromptInputLine({
+							description = "Enter ssh target (user@host):",
+							action = wezterm.action_callback(function(_win, _pane, target)
+								if target and #target > 0 then
+									connect_ssh(_win, _pane, target)
+								end
+							end),
+						}),
+						pane2
+					)
+					return
+				end
+				if id then
+					connect_ssh(window, pane2, id)
+				end
+				return nil
+			end),
+		}),
+		pane
+	)
 end
 
 local function get_wez_nvim_args()
@@ -937,6 +1096,11 @@ config.keys = {
 		key = "g",
 		mods = "ALT",
 		action = wezterm.action_callback(goto_repo),
+	},
+	{
+		key = "h",
+		mods = "ALT",
+		action = wezterm.action_callback(open_ssh_session),
 	},
 	{
 		key = "a",
